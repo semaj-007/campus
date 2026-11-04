@@ -1,9 +1,11 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+<resources>
     <style name="Base.Theme.Campus" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="colorPrimary">#1B4333</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#D8AE2B</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">#F7F6F0</item>
     </style>
-
     <style name="Theme.Campus" parent="Base.Theme.Campus" />
 </resources>
