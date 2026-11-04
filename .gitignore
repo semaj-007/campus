@@ -16,3 +16,6 @@ local.properties
 
 # Local tool output
 .kotlin/
+
+# Firebase configuration supplied separately for each deployment
+/app/google-services.json

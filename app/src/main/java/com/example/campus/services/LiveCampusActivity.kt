@@ -3,15 +3,20 @@ package com.example.campus.services
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Build
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.*
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
@@ -23,6 +28,9 @@ import java.util.concurrent.Executors
 
 /** Real campus data only. Local demo records are never read by this Activity. */
 class LiveCampusActivity : FragmentActivity() {
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        PushSupport.setEnabled(this, granted)
+    }
     private val executor=Executors.newSingleThreadExecutor()
     private lateinit var body:LinearLayout
     private var user=JSONObject()
@@ -43,6 +51,13 @@ class LiveCampusActivity : FragmentActivity() {
         super.onCreate(state)
         scanner=HandoffScanner(this){value->scannedCode?.invoke(value)}
         if(SecureSession(this).read()?.isAuthorized!=true){finish();return}
+        val pushPreferences=getSharedPreferences("campus_push",MODE_PRIVATE)
+        if(PushSupport.initialize(this) && Build.VERSION.SDK_INT>=33 &&
+            ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED &&
+            pushPreferences.getBoolean("enabled",true) && !pushPreferences.getBoolean("permission_asked",false)) {
+            pushPreferences.edit().putBoolean("permission_asked",true).apply()
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         current=state?.getString("tab")?:"deliveries"
         onBackPressedDispatcher.addCallback(this,object:OnBackPressedCallback(true){override fun handleOnBackPressed(){if(current=="deliveries")finish() else deliveries()}})
         shell("Your campus","Connecting to your university account…")

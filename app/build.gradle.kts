@@ -1,5 +1,12 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.google.services) apply false
+}
+
+// Firebase remains optional for the offline demo. With the real project file in
+// this module, Google Services generates the resources Firebase reads at startup.
+if (file("google-services.json").isFile) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 android {

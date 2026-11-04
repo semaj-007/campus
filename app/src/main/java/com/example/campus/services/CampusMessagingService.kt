@@ -28,14 +28,26 @@ object PushSupport {
         context.getSharedPreferences("campus_push", Context.MODE_PRIVATE).edit().putBoolean("enabled", enabled).apply()
     }
     fun initialize(context: Context): Boolean {
-        val config = ServiceConfig(context)
-        val appId = config.firebaseValue("app")
-        if (appId.isBlank()) return false
+        val appContext = context.applicationContext
         return try {
-            if (FirebaseApp.getApps(context).isEmpty()) FirebaseApp.initializeApp(context, FirebaseOptions.Builder()
-                .setApplicationId(appId).setApiKey(config.firebaseValue("key")).setProjectId(config.firebaseValue("project"))
-                .setGcmSenderId(config.firebaseValue("sender")).build())
-            FirebaseMessaging.getInstance().token.addOnSuccessListener { registerToken(context, it) }
+            // google-services.json generates the resources used by FirebaseInitProvider.
+            // Reuse that default app, or initialize it from those resources, before
+            // considering the optional manual configuration used by custom builds.
+            val defaultApp = FirebaseApp.getApps(appContext)
+                .firstOrNull { it.name == FirebaseApp.DEFAULT_APP_NAME }
+                ?: FirebaseApp.initializeApp(appContext)
+            if (defaultApp == null) {
+                val config = ServiceConfig(appContext)
+                val appId = config.firebaseValue("app")
+                val apiKey = config.firebaseValue("key")
+                val projectId = config.firebaseValue("project")
+                val senderId = config.firebaseValue("sender")
+                if (listOf(appId, apiKey, projectId, senderId).any { it.isBlank() }) return false
+                FirebaseApp.initializeApp(appContext, FirebaseOptions.Builder()
+                    .setApplicationId(appId).setApiKey(apiKey).setProjectId(projectId)
+                    .setGcmSenderId(senderId).build())
+            }
+            FirebaseMessaging.getInstance().token.addOnSuccessListener { registerToken(appContext, it) }
             true
         } catch (_: Exception) { false }
     }

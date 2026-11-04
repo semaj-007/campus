@@ -34,6 +34,8 @@ The app separates its local walkthrough from the university workspace. **Continu
 
 The integration uses OIDC authorization code + PKCE, encrypted token storage, server-verified campus membership, authenticated TLS requests, Room snapshots/queued handoffs and network-constrained WorkManager synchronization. QR handoffs can require Android's strong biometric prompt. FCM support activates only with the real Firebase project configuration and notification permission.
 
+For your downloaded Firebase Android configuration, copy it to **`app/google-services.json`**, then select **File → Sync Project with Gradle Files** in Android Studio. The Google Services plugin and default Firebase initialization are wired automatically when that file exists; the offline demo still builds without it. Use the Firebase registration for package `com.example.campus`. The file is ignored by Git. Real push delivery still requires the authenticated university API and server Firebase Admin setup.
+
 See [live service integration](app/src/main/java/com/example/campus/services/INTEGRATION.md) and [backend setup/API contracts](backend/README.md).
 
 ### Server
