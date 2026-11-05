@@ -67,6 +67,14 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "CampusRelay" }));
 var api = app.MapGroup("/api/v1").RequireAuthorization("Campus");
+api.MapGet("/account/status", async (CampusService s, ClaimsPrincipal u) => Results.Ok(await s.AccountStatus(u)));
+api.MapPost("/account/registration", async (CampusService s, ClaimsPrincipal u, HttpRequest request) =>
+{
+    Rules.Require(request.HasFormContentType, "Use multipart form data.");
+    var form = await request.ReadFormAsync(); var proof = form.Files.GetFile("proof");
+    Rules.Require(proof != null, "Proof of registration is required.");
+    return Results.Ok(await s.SubmitRegistration(u, form["fullName"].ToString(), form["studentNumber"].ToString(), proof!));
+}).DisableAntiforgery();
 api.MapGet("/profile", async (CampusService s, ClaimsPrincipal u) => Results.Ok(await s.Profile(u)));
 api.MapPut("/profile", async (CampusService s, ClaimsPrincipal u, ProfileInput input) => Results.Ok(await s.UpdateProfile(u, input)));
 api.MapPost("/profile/device-token", async (CampusService s, ClaimsPrincipal u, DeviceInput input) => Results.Ok(await s.RegisterDevice(u, input)));

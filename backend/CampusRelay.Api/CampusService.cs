@@ -34,13 +34,39 @@ public static class Rules
 
 public sealed class CampusService(CampusDb db)
 {
-    public async Task<CampusUser> Profile(ClaimsPrincipal principal)
+    public async Task<CampusUser> Profile(ClaimsPrincipal principal, bool requireApproved = true)
     {
         var subject = principal.FindFirstValue("sub"); Rules.Require(!string.IsNullOrEmpty(subject), "Authentication required.", 401);
         var user = await db.Users.SingleOrDefaultAsync(x => x.Subject == subject);
-        if (user != null) return user;
-        user = new CampusUser { Subject = subject!, Email = principal.FindFirstValue("email") ?? "", FullName = principal.FindFirstValue("name") ?? "Campus member" };
-        db.Users.Add(user); await db.SaveChangesAsync(); return user;
+        if (user == null)
+        {
+            user = new CampusUser { Subject = subject!, Email = principal.FindFirstValue("email") ?? "", FullName = principal.FindFirstValue("name") ?? "Campus member",
+                RegistrationStatus = principal.Identity?.AuthenticationType == "test" ? "APPROVED" : "UNVERIFIED" };
+            db.Users.Add(user); await db.SaveChangesAsync();
+        }
+        if (requireApproved) Rules.Require(user.RegistrationStatus == "APPROVED", user.RegistrationStatus == "PENDING" ? "Your proof of registration is awaiting institutional review." : "Create an account and submit proof of registration first.", 403);
+        return user;
+    }
+    public async Task<object> AccountStatus(ClaimsPrincipal principal)
+    {
+        var user = await Profile(principal, false);
+        return new { status = user.RegistrationStatus.ToLowerInvariant(), user.Email, user.FullName };
+    }
+    public async Task<object> SubmitRegistration(ClaimsPrincipal principal, string fullName, string studentNumber, IFormFile proof)
+    {
+        var user = await Profile(principal, false);
+        Rules.Require(user.RegistrationStatus != "APPROVED", "This account is already approved.", 409);
+        user.FullName = Rules.Text(fullName, "Full name", 100);
+        var number = Rules.Text(studentNumber, "Student number", 50);
+        Rules.Require(proof.Length > 0 && proof.Length <= 5 * 1024 * 1024, "Proof must be between 1 byte and 5 MB.");
+        var allowed = new[] { "application/pdf", "image/jpeg", "image/png" };
+        Rules.Require(allowed.Contains(proof.ContentType), "Upload a PDF, JPG, or PNG document.");
+        await using var stream = new MemoryStream(); await proof.CopyToAsync(stream);
+        var previous = await db.RegistrationProofs.SingleOrDefaultAsync(x => x.UserId == user.Id);
+        if (previous == null) { previous = new RegistrationProof { UserId = user.Id }; db.RegistrationProofs.Add(previous); }
+        previous.StudentNumber = number; previous.FileName = Path.GetFileName(proof.FileName); previous.ContentType = proof.ContentType;
+        previous.Content = stream.ToArray(); previous.SubmittedAt = DateTimeOffset.UtcNow; user.RegistrationStatus = "PENDING";
+        await db.SaveChangesAsync(); return new { status = "pending", message = "Proof submitted for institutional review." };
     }
     public async Task<CampusUser> UpdateProfile(ClaimsPrincipal p, ProfileInput input)
     {

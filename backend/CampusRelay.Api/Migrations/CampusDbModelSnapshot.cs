@@ -63,6 +63,10 @@ namespace CampusRelay.Api.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("int");
 
+                    b.Property<string>("RegistrationStatus")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Subject")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -356,6 +360,20 @@ namespace CampusRelay.Api.Migrations
                     b.HasKey("EventId", "DeviceId");
 
                     b.ToTable("PushReceipts");
+                });
+
+            modelBuilder.Entity("CampusRelay.Api.RegistrationProof", b =>
+                {
+                    b.Property<string>("Id").HasColumnType("nvarchar(450)");
+                    b.Property<byte[]>("Content").IsRequired().HasColumnType("varbinary(max)");
+                    b.Property<string>("ContentType").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<string>("FileName").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<string>("StudentNumber").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<DateTimeOffset>("SubmittedAt").HasColumnType("datetimeoffset");
+                    b.Property<string>("UserId").IsRequired().HasColumnType("nvarchar(450)");
+                    b.HasKey("Id");
+                    b.HasIndex("UserId").IsUnique();
+                    b.ToTable("RegistrationProofs");
                 });
 
             modelBuilder.Entity("CampusRelay.Api.Review", b =>

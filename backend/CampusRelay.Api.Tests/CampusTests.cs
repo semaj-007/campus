@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 using Xunit;
 
 namespace CampusRelay.Api.Tests;
@@ -34,6 +35,16 @@ public sealed class CampusTests : IDisposable
     {
         var a = await service.Profile(sender); var b = await service.Profile(sender);
         Assert.Equal(a.Id, b.Id); Assert.Equal("sender@campus.ac.za", a.Email); Assert.Single(await db.Users.ToListAsync());
+    }
+    [Fact] public async Task NewAccountRequiresProofAndRemainsPendingReview()
+    {
+        var identity = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("sub", "new-member"), new Claim("email", "new@gmail.com"), new Claim("name", "New Member") }, "Bearer"));
+        var blocked = await Assert.ThrowsAsync<CampusException>(() => service.Profile(identity)); Assert.Equal(403, blocked.Status);
+        var file = new FormFile(new MemoryStream("registration proof"u8.ToArray()), 0, 18, "proof", "proof.pdf") { Headers = new HeaderDictionary(), ContentType = "application/pdf" };
+        await service.SubmitRegistration(identity, "New Member", "STU-123", file);
+        var status = await service.AccountStatus(identity); Assert.Contains("pending", System.Text.Json.JsonSerializer.Serialize(status));
+        Assert.Single(await db.RegistrationProofs.ToListAsync());
+        await Assert.ThrowsAsync<CampusException>(() => service.Profile(identity));
     }
     [Fact] public async Task InvalidDeliveryWeightRejected()
     {

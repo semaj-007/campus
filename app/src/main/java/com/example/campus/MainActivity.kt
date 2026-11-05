@@ -43,6 +43,15 @@ class MainActivity : AppCompatActivity() {
             render()
         }
     }
+    private var registrationProof:Uri?=null
+    private var registrationName=""
+    private var registrationStudentNumber=""
+    private val proofPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri:Uri?->
+        if(uri!=null){
+            contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            registrationProof=uri; render()
+        }
+    }
     private var screen="home"
     private var filter=0
     private var selectedDelivery=""
@@ -89,7 +98,7 @@ class MainActivity : AppCompatActivity() {
         }}
         if(savedInstanceState!=null){screen=savedInstanceState.getString("screen","home");filter=savedInstanceState.getInt("filter");selectedDelivery=savedInstanceState.getString("delivery","")
             wizardStep=savedInstanceState.getInt("step");draftPickup=savedInstanceState.getString("pickup",draftPickup);draftDropoff=savedInstanceState.getString("dropoff",draftDropoff);draftDescription=savedInstanceState.getString("description","");draftWeight=savedInstanceState.getDouble("weight",1.0);draftReward=savedInstanceState.getDouble("reward",25.0);draftStart=savedInstanceState.getLong("start",draftStart);draftEnd=savedInstanceState.getLong("end",draftEnd)}
-        onBackPressedDispatcher.addCallback(this,object:OnBackPressedCallback(true){override fun handleOnBackPressed(){when{screen=="wizard"&&wizardStep>0->{wizardStep--;render()};screen!="home"&&screen!="welcome"->go("home");screen=="welcome"->finish();else->finish()}}})
+        onBackPressedDispatcher.addCallback(this,object:OnBackPressedCallback(true){override fun handleOnBackPressed(){when{screen=="wizard"&&wizardStep>0->{wizardStep--;render()};screen=="register"->go("welcome");screen!="home"&&screen!="welcome"->go("home");screen=="welcome"->finish();else->finish()}}})
         if(!localPrefs.getBoolean("demo_session",false)) screen="welcome"
         render()
     }
@@ -111,8 +120,8 @@ class MainActivity : AppCompatActivity() {
         val scroll=ScrollView(this).apply{isFillViewport=true;clipToPadding=false}
         body=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(24),dp(20),dp(24),dp(28))}
         scroll.addView(body,ViewGroup.LayoutParams(-1,-2));shell.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-        when(screen){"welcome"->welcome();"home"->home();"track"->track();"settings"->settings();"detail"->details();"wizard"->wizard();"carpool"->carpool();"market"->market();"impact"->impact();"chat"->chat();"services"->services();"notifications"->notifications();else->home()}
-        if(screen!="welcome"&&screen!="wizard") bottomNav()
+        when(screen){"welcome"->welcome();"register"->register();"home"->home();"track"->track();"settings"->settings();"detail"->details();"wizard"->wizard();"carpool"->carpool();"market"->market();"impact"->impact();"chat"->chat();"services"->services();"notifications"->notifications();else->home()}
+        if(screen!="welcome"&&screen!="register"&&screen!="wizard") bottomNav()
         if(screen=="home")frame.addView(FrameLayout(this).apply{
             background=surface(gold,dp(19).toFloat());elevation=dp(5).toFloat();contentDescription="Create delivery request";isFocusable=true
             addView(RelayIcon(this@MainActivity,"plus",green),FrameLayout.LayoutParams(dp(25),dp(25),Gravity.CENTER))
@@ -147,10 +156,33 @@ class MainActivity : AppCompatActivity() {
         body.addView(text("CampusRelay",32f,ink,true));space(h=14);body.addView(text(s(R.string.welcome_title),35f,green,true));space(h=16);body.addView(text(s(R.string.welcome_subtitle),16f,muted))
         space(h=24)
         val art=CampusMap(this,dark).apply{deliveries=repo.deliveries().take(2)};body.addView(art,LinearLayout.LayoutParams(-1,dp(155)));space(h=20)
-        button("Continue with Google"){if(ServiceConfig(this).configured)googleSso.start{ok,message->runOnUiThread{if(ok)openUniversity()else notice("Google sign-in",message)}} else go("services")}
+        button("Sign back in with Google"){if(ServiceConfig(this).configured)googleSso.start{ok,message->runOnUiThread{if(ok)openUniversity()else notice("Google sign-in",message)}} else go("services")}
+        button("Create a new account",primary=false){if(ServiceConfig(this).configured)go("register") else go("services")}
         if(GoogleSession(this).read()?.isAuthorized==true&&BiometricGate.isAvailable(this))button("Unlock Google account",primary=false){BiometricGate.authenticate(this,"Unlock CampusRelay",{openUniversity()}){notice("Biometric sign-in",it)}}
         button(s(R.string.explore_demo),primary=false){val enter={localPrefs.edit().putBoolean("demo_session",true).apply();go("home")};if(repo.preferences.biometricLock)BiometricGate.authenticate(this,"Unlock CampusRelay",enter){notice("Biometric sign-in",it)}else enter()}
         space(h=12);body.addView(text(s(R.string.security_note),11f,muted).apply{gravity=Gravity.CENTER})
+    }
+    private fun register(){
+        heading("Create your account","New accounts require proof that you are registered with the institution.")
+        val fullName=field("Full name","As shown on your registration document",registrationName).apply{doAfterTextChanged{registrationName=it.toString()}}
+        val studentNumber=field("Student number","Your institutional student number",registrationStudentNumber).apply{doAfterTextChanged{registrationStudentNumber=it.toString()}}
+        card().apply{
+            addView(text("Proof of registration",16f,ink,true));space(this,8)
+            addView(text(if(registrationProof==null) "Upload a current registration letter or student document in PDF, JPG, or PNG format (maximum 5 MB)." else "Document selected and ready to submit.",12f,muted))
+            button(if(registrationProof==null) "Choose document" else "Choose a different document",this,false){proofPicker.launch(arrayOf("application/pdf","image/jpeg","image/png"))}
+        }
+        button("Continue with Google and submit"){
+            attempt{
+                require(fullName.text.toString().isNotBlank()){ "Enter your full name." }
+                require(studentNumber.text.toString().isNotBlank()){ "Enter your student number." }
+                val proof=registrationProof ?: error("Choose proof of registration first.")
+                googleSso.createAccount(fullName.text.toString().trim(),studentNumber.text.toString().trim(),proof){ok,message->runOnUiThread{
+                    notice(if(ok) "Registration submitted" else "Registration failed",message)
+                    if(ok){registrationProof=null;registrationName="";registrationStudentNumber="";go("welcome")}
+                }}
+            }
+        }
+        button("Back to sign in",primary=false){go("welcome")}
     }
     private fun home(){
         val header=row();val labels=col();labels.addView(text("EMERIS PRETORIA  /  CAMPUS LIFE",10f,muted,true).apply{letterSpacing=.12f});space(labels,6);labels.addView(text("Hi, ${repo.profile.name.substringBefore(" ")}",25f,ink,true));header.addView(labels,LinearLayout.LayoutParams(0,-2,1f))

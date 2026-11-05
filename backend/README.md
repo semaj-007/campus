@@ -46,7 +46,11 @@ Requests and responses use camelCase JSON. IDs are UUID strings. UTC date-times 
 | Method | Path under `/api/v1` | Purpose |
 | --- | --- | --- |
 | GET / PUT | `/profile` | Provision from verified SSO claims / update own profile (`fullName`, `bio`, `campusLocation`, `language`: `en`, `zu`, `af`) |
+| GET | `/account/status` | Return `unverified`, `pending`, or `approved` for the signed-in Google identity |
+| POST | `/account/registration` | Submit multipart `fullName`, `studentNumber`, and required PDF/JPG/PNG `proof` (maximum 5 MB) for institutional review |
 | POST | `/profile/device-token` | Register an Android FCM token: `{ "token": "...", "platform": "android" }` |
+
+Apply the registration schema before deploying with `dotnet ef database update`. Reviewers approve a validated submission by changing that user's `RegistrationStatus` from `PENDING` to `APPROVED` through the institution's restricted database administration process. Do not expose proof files or approval updates through a public client endpoint.
 | GET | `/eco` | Own cumulative estimated CO2 savings and action history |
 | GET / POST | `/deliveries` | List campus deliveries / create request |
 | GET | `/deliveries/{id}` | Read a delivery, without exposing the QR secret |

@@ -17,6 +17,7 @@ public sealed class CampusDb(DbContextOptions<CampusDb> options) : DbContext(opt
     public DbSet<DeliveryEvent> Events => Set<DeliveryEvent>();
     public DbSet<DeviceRegistration> Devices => Set<DeviceRegistration>();
     public DbSet<PushReceipt> PushReceipts => Set<PushReceipt>();
+    public DbSet<RegistrationProof> RegistrationProofs => Set<RegistrationProof>();
     protected override void OnModelCreating(ModelBuilder model)
     {
         model.Entity<CampusUser>().HasIndex(x => x.Subject).IsUnique();
@@ -24,6 +25,7 @@ public sealed class CampusDb(DbContextOptions<CampusDb> options) : DbContext(opt
         model.Entity<PushReceipt>().HasKey(x => new { x.EventId, x.DeviceId });
         model.Entity<DeliveryEvent>().HasIndex(x => new { x.DispatchStatus, x.NextAttemptAt });
         model.Entity<CampusUser>().HasIndex(x => x.Email).IsUnique();
+        model.Entity<RegistrationProof>().HasIndex(x => x.UserId).IsUnique();
         model.Entity<CampusUser>().Property(x => x.Revision).IsConcurrencyToken();
         model.Entity<RouteOffer>().Property(x => x.Revision).IsConcurrencyToken();
         model.Entity<Delivery>().Property(x => x.Revision).IsConcurrencyToken();
@@ -50,6 +52,18 @@ public sealed class CampusUser
     public int RatingSum { get; set; }
     public int RatingCount { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public string RegistrationStatus { get; set; } = "UNVERIFIED";
+}
+
+public sealed class RegistrationProof
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string UserId { get; set; } = "";
+    public string StudentNumber { get; set; } = "";
+    public string FileName { get; set; } = "";
+    public string ContentType { get; set; } = "";
+    public byte[] Content { get; set; } = [];
+    public DateTimeOffset SubmittedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class Delivery
