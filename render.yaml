@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: campusrelay-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    plan: starter
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Database__Provider
+        value: Sqlite
+      - key: Database__AutoMigrate
+        value: "true"
+      - key: ConnectionStrings__Campus
+        value: Data Source=/var/data/campusrelay.db
+      - key: Firebase__ProjectId
+        sync: false
+      - key: AllowedHosts
+        value: "*"
+      - key: Notifications__EnableFcm
+        value: "false"
+    disk:
+      name: campusrelay-data
+      mountPath: /var/data
+      sizeGB: 1

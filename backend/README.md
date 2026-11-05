@@ -2,6 +2,14 @@
 
 ASP.NET Core 8 / EF Core service for the Android application. It includes persistent delivery requests and courier routes, route/time/capacity matching, booking and QR handoffs, idempotent offline sync, ride offers and seat booking, marketplace reservations, transaction chat, reviews, eco history, and a durable delivery-notification outbox. Money is represented in integer South African cents. **No payment gateway, wallet settlement, fake SSO, or unrestricted development identity is enabled.**
 
+## Deploy on Render
+
+The repository root contains `render.yaml`. In Render, choose **New → Blueprint**, connect this GitHub repository, and select the `main` branch. The blueprint builds `backend/Dockerfile`, checks `/health`, and attaches a 1 GB persistent disk at `/var/data`. A persistent disk requires a paid Render instance; do not remove it because the SQLite database and submitted registration proofs would otherwise be lost on restart or redeploy.
+
+When Render prompts for `Firebase__ProjectId`, enter the Firebase **Project ID** used by the Android app. It is not the project name, number, API key, or the contents of `google-services.json`. Leave `Notifications__EnableFcm=false` until server-side Firebase Admin credentials are configured. After deployment, open `https://<your-render-service>.onrender.com/health`; the expected response is `{"status":"ok","service":"CampusRelay"}`. Enter the service's HTTPS root URL in the Android app under **Google & API connection**.
+
+The blueprint sets `AllowedHosts=*` because Render assigns the public hostname after creating the service. TLS terminates at Render's proxy and the container listens only on Render's supplied `PORT`. Use a single instance with this SQLite deployment. For horizontal scaling or larger production use, add a supported shared database provider before increasing the instance count.
+
 ## Run locally
 
 Requires .NET SDK 8.0.427 (pinned in `global.json`). This cloud workspace has a checksum-verified SDK at `/workspace/toolchains/dotnet8`.
@@ -37,7 +45,9 @@ dotnet ef migrations script --idempotent --project CampusRelay.Api --output sche
 dotnet ef database update --project CampusRelay.Api
 ```
 
-`DesignTimeDb` reads `ConnectionStrings__Campus` and creates migrations for SQL Server without depending on a live SSO connection. It never stores credentials. Production intentionally does not auto-create or auto-migrate the database.
+`DesignTimeDb` reads `ConnectionStrings__Campus` and creates migrations for SQL Server without depending on a live SSO connection. It never stores credentials. Production intentionally does not auto-create or auto-migrate the database unless the deployment explicitly enables it.
+
+The included Render blueprint runs one SQLite instance with a persistent disk and `Database__AutoMigrate=true`. On a new disk the service creates the current schema with `EnsureCreated`; SQL Server continues to use reviewed EF migrations. Future SQLite schema changes require a reviewed data migration or a new disk, because `EnsureCreated` does not alter an existing database.
 
 ## API contract
 

@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+if (int.TryParse(Environment.GetEnvironmentVariable("PORT"), out var renderPort))
+    builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
 var projectId = builder.Configuration["Firebase:ProjectId"] ?? "";
 if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing") &&
     string.IsNullOrWhiteSpace(projectId))
@@ -57,6 +59,13 @@ if (builder.Configuration.GetValue<bool>("Notifications:EnableFcm"))
     builder.Services.AddHostedService<FcmOutboxWorker>();
 }
 var app = builder.Build();
+if (builder.Configuration.GetValue<bool>("Database:AutoMigrate"))
+{
+    using var migrationScope = app.Services.CreateScope();
+    var database = migrationScope.ServiceProvider.GetRequiredService<CampusDb>().Database;
+    if (builder.Configuration["Database:Provider"] == "SqlServer") await database.MigrateAsync();
+    else await database.EnsureCreatedAsync();
+}
 app.Use(async (context, next) =>
 {
     try { await next(context); }
