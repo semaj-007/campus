@@ -5,32 +5,39 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
-var tenant = builder.Configuration["Identity:TenantId"] ?? "";
-var audience = builder.Configuration["Identity:Audience"] ?? "";
-var domain = builder.Configuration["Identity:AllowedEmailDomain"] ?? "";
+var projectId = builder.Configuration["Firebase:ProjectId"] ?? "";
 if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing") &&
-    (!Guid.TryParse(tenant, out _) || string.IsNullOrWhiteSpace(audience) || string.IsNullOrWhiteSpace(domain)))
-    throw new InvalidOperationException("Configure Identity:TenantId, Audience and AllowedEmailDomain before production startup.");
+    string.IsNullOrWhiteSpace(projectId))
+    throw new InvalidOperationException("Configure Firebase:ProjectId before production startup.");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
-    if (Guid.TryParse(tenant, out _)) options.Authority = $"https://login.microsoftonline.com/{tenant}/v2.0";
-    options.Audience = audience;
+    if (!string.IsNullOrWhiteSpace(projectId)) options.Authority = $"https://securetoken.google.com/{projectId}";
+    options.Audience = projectId;
     options.MapInboundClaims = false;
     options.RequireHttpsMetadata = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true, ValidateAudience = true, ValidateIssuerSigningKey = true,
         ValidateLifetime = true, ClockSkew = TimeSpan.FromMinutes(1),
-        ValidIssuer = $"https://login.microsoftonline.com/{tenant}/v2.0", ValidAudience = audience
+        ValidIssuer = $"https://securetoken.google.com/{projectId}", ValidAudience = projectId
     };
 });
 builder.Services.AddAuthorization(options => options.AddPolicy("Campus", policy =>
     policy.RequireAuthenticatedUser().RequireAssertion(context =>
     {
-        var email = context.User.FindFirstValue("email") ?? context.User.FindFirstValue("preferred_username");
-        return !string.IsNullOrWhiteSpace(domain) && email != null &&
-               email.EndsWith("@" + domain, StringComparison.OrdinalIgnoreCase) &&
-               context.User.FindFirstValue("tid") == tenant && context.User.HasClaim(c => c.Type == "sub");
+        var provider = context.User.FindFirstValue("firebase");
+        var googleProvider = false;
+        if (!string.IsNullOrWhiteSpace(provider))
+        {
+            try
+            {
+                using var document = System.Text.Json.JsonDocument.Parse(provider);
+                googleProvider = document.RootElement.TryGetProperty("sign_in_provider", out var signInProvider) && signInProvider.GetString() == "google.com";
+            }
+            catch (System.Text.Json.JsonException) { }
+        }
+        return context.User.HasClaim(c => c.Type == "sub") &&
+               context.User.FindFirstValue("email_verified")?.Equals("true", StringComparison.OrdinalIgnoreCase) == true && googleProvider;
     })));
 builder.Services.AddDbContext<CampusDb>(options =>
 {

@@ -28,11 +28,11 @@ Install `app/build/outputs/apk/debug/app-debug.apk` on Android 7.0/API 24 or lat
 
 Local profiles, jobs, routes, chats, bookings and preferences survive app restarts in a private SQLite database. Seeded couriers, rides and items are fictional. Demo data never uploads into a real university account. The map is a **sample campus schematic**, using the buildings in the reference brief; it is not live GPS or a verified Emeris campus map. Actual Emeris Pretoria building locations are still to be supplied.
 
-## University service configuration
+## Google Sign-In and connected service configuration
 
-The app separates its local walkthrough from the university workspace. **Continue with Emeris** requires the actual university Microsoft Entra tenant ID, public mobile client ID, trusted email domain and deployed HTTPS API URL. These public configuration values can be entered under Settings → University & API connection. Do not put passwords or client secrets in the mobile app.
+The app separates its local walkthrough from the connected workspace. **Continue with Google** is the only SSO option. It uses Google Sign-In through Firebase Authentication, then sends the refreshed Firebase ID token to the deployed HTTPS CampusRelay API. The API URL can be entered under Settings → Google & API connection. Microsoft/Entra and generic OIDC login have been removed.
 
-The integration uses OIDC authorization code + PKCE, encrypted token storage, server-verified campus membership, authenticated TLS requests, Room snapshots/queued handoffs and network-constrained WorkManager synchronization. QR handoffs can require Android's strong biometric prompt. FCM support activates only with the real Firebase project configuration and notification permission.
+Firebase Authentication manages the Google session and token refresh. The API validates the Firebase project, token signature, lifetime, verified email, and `google.com` sign-in provider. Room snapshots/queued handoffs and network-constrained WorkManager synchronization remain account-partitioned. QR handoffs can require Android's strong biometric prompt.
 
 For your downloaded Firebase Android configuration, copy it to **`app/google-services.json`**, then select **File → Sync Project with Gradle Files** in Android Studio. The Google Services plugin and default Firebase initialization are wired automatically when that file exists; the offline demo still builds without it. Use the Firebase registration for package `com.example.campus`. The file is ignored by Git. Real push delivery still requires the authenticated university API and server Firebase Admin setup.
 
@@ -40,7 +40,7 @@ See [live service integration](app/src/main/java/com/example/campus/services/INT
 
 ### Server
 
-`backend/` contains ASP.NET Core 8 / EF Core, SQLite for local development and a SQL Server migration for Azure SQL. It implements campus authorization, requests/routes/matching, bookings, delivery handoffs, idempotent offline synchronization, rides, marketplace transactions, private chat, reviews, eco history and notification events. Production startup requires valid university identity configuration; no development bypass is exposed.
+`backend/` contains ASP.NET Core 8 / EF Core, SQLite for local development and a SQL Server migration for Azure SQL. It implements Firebase token authorization, requests/routes/matching, bookings, delivery handoffs, idempotent offline synchronization, rides, marketplace transactions, private chat, reviews, eco history and notification events. Production startup requires a Firebase project ID; no development bypass is exposed.
 
 ## Validation
 
@@ -52,4 +52,4 @@ Tests cover route geometry/direction, time windows and capacity, invalid deliver
 
 ## Deployment boundaries
 
-No Azure deployment, environment publication, real campus SSO session, remote handoff sync, FCM delivery, or financial transfer has been performed. Those end-to-end checks require the university's actual registrations and infrastructure. There is no payment gateway or real wallet withdrawal. Route matching is campus-scale straight-line proximity; it does not integrate lecture timetables or turn-by-turn navigation. Translation resources cover the primary navigation and forms; some explanatory demo and administrative text remains English.
+No cloud deployment, real Google session, remote handoff sync, FCM delivery, or financial transfer has been performed. Those end-to-end checks require the Firebase project and deployed API. There is no payment gateway or real wallet withdrawal. Route matching is campus-scale straight-line proximity; it does not integrate lecture timetables or turn-by-turn navigation. Translation resources cover the primary navigation and forms; some explanatory demo and administrative text remains English.

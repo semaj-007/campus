@@ -50,7 +50,7 @@ class LiveCampusActivity : FragmentActivity() {
     override fun onCreate(state:Bundle?){
         super.onCreate(state)
         scanner=HandoffScanner(this){value->scannedCode?.invoke(value)}
-        if(SecureSession(this).read()?.isAuthorized!=true){finish();return}
+        if(GoogleSession(this).read()?.isAuthorized!=true){finish();return}
         val pushPreferences=getSharedPreferences("campus_push",MODE_PRIVATE)
         if(PushSupport.initialize(this) && Build.VERSION.SDK_INT>=33 &&
             ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED &&
@@ -243,7 +243,7 @@ class LiveCampusActivity : FragmentActivity() {
             val name=field("Full name",value=p.string("fullName"));val bio=field("Bio",value=p.string("bio"));val location=field("Campus location",value=p.string("campusLocation"));val lang=pick("Language",listOf("en","zu","af"));lang.setSelection(listOf("en","zu","af").indexOf(p.string("language")).coerceAtLeast(0))
             button("Save profile"){action("PUT","/api/v1/profile",JSONObject().put("fullName",required(name,"name")).put("bio",bio.text.toString()).put("campusLocation",required(location,"campus location")).put("language",lang.selectedItem.toString())){profile()}}
             button("View eco impact",false){eco()};button("Offline handoff queue",false){queue()};button("Return to app",false){finish()}
-            button("Sign out",false){SecureSession(this).clear();store.unbind();androidx.core.app.NotificationManagerCompat.from(this).cancelAll();finish()}
+            button("Sign out",false){GoogleSession(this).clear();store.unbind();androidx.core.app.NotificationManagerCompat.from(this).cancelAll();finish()}
         }
     }
     private fun eco(){current="eco";shell("Small journeys. Real impact.","Your estimated savings from completed campus exchanges.")

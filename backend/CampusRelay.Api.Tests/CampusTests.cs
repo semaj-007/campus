@@ -98,25 +98,22 @@ public class ApiSecurityTests
 
 public class TokenPolicyTests
 {
-    private const string Tenant = "10000000-0000-0000-0000-000000000001";
-    private const string Audience = "api://campusrelay-tests";
+    private const string ProjectId = "campusrelay-tests";
     private static readonly Microsoft.IdentityModel.Tokens.SymmetricSecurityKey Key = new(System.Text.Encoding.UTF8.GetBytes("test-signing-key-only-not-a-production-secret-1234567890"));
-    private static string Token(string domain, string audience = Audience)
+    private static string Token(string provider = "google.com", string audience = ProjectId)
     {
         var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityToken(
-            issuer: $"https://login.microsoftonline.com/{Tenant}/v2.0", audience: audience,
-            claims: [new Claim("sub", "token-member"), new Claim("tid", Tenant), new Claim("email", "member@" + domain)],
+            issuer: $"https://securetoken.google.com/{ProjectId}", audience: audience,
+            claims: [new Claim("sub", "token-member"), new Claim("email", "member@gmail.com"), new Claim("email_verified", "true"), new Claim("firebase", $"{{\"sign_in_provider\":\"{provider}\"}}")],
             expires: DateTime.UtcNow.AddMinutes(5), signingCredentials: new(Key, Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256));
         return new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().WriteToken(token);
     }
-    [Fact] public async Task InvalidAudienceIsRejectedAndWrongCampusDomainIsForbidden()
+    [Fact] public async Task InvalidAudienceIsRejectedAndNonGoogleProviderIsForbidden()
     {
         await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(web =>
         {
             web.UseEnvironment("Testing");
-            web.UseSetting("Identity:TenantId", Tenant);
-            web.UseSetting("Identity:Audience", Audience);
-            web.UseSetting("Identity:AllowedEmailDomain", "campus.ac.za");
+            web.UseSetting("Firebase:ProjectId", ProjectId);
             web.ConfigureServices(services =>
             {
                 Microsoft.Extensions.DependencyInjection.OptionsServiceCollectionExtensions.PostConfigure<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>(services,
@@ -129,9 +126,9 @@ public class TokenPolicyTests
             });
         });
         var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new("Bearer", Token("campus.ac.za", "wrong-audience"));
+        client.DefaultRequestHeaders.Authorization = new("Bearer", Token(audience: "wrong-audience"));
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/profile")).StatusCode);
-        client.DefaultRequestHeaders.Authorization = new("Bearer", Token("outside.ac.za"));
+        client.DefaultRequestHeaders.Authorization = new("Bearer", Token("password"));
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/v1/profile")).StatusCode);
     }
 }

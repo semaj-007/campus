@@ -31,7 +31,7 @@ import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
     private lateinit var repo: CampusRepository
-    private lateinit var universitySignIn: UniversitySignIn
+    private lateinit var googleSso: GoogleSso
     private lateinit var handoffScanner: HandoffScanner
     private lateinit var shell: LinearLayout
     private lateinit var body: LinearLayout
@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         repo=CampusRepository(this)
         delegate.localNightMode=if(repo.preferences.darkMode)AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
-        universitySignIn=UniversitySignIn(this)
+        googleSso=GoogleSso(this)
         handoffScanner=HandoffScanner(this){code->attempt{
             val d=repo.delivery(selectedDelivery)
             require(d.status=="IN_TRANSIT"){"Pick up the delivery before confirming its handoff."}
@@ -92,12 +92,9 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this,object:OnBackPressedCallback(true){override fun handleOnBackPressed(){when{screen=="wizard"&&wizardStep>0->{wizardStep--;render()};screen!="home"&&screen!="welcome"->go("home");screen=="welcome"->finish();else->finish()}}})
         if(!localPrefs.getBoolean("demo_session",false)) screen="welcome"
         render()
-        if(intent?.data!=null) handleAuth(intent)
     }
-    override fun onDestroy(){universitySignIn.dispose();repo.close();super.onDestroy()}
-    override fun onNewIntent(intent:Intent){super.onNewIntent(intent);setIntent(intent);handleAuth(intent)}
+    override fun onDestroy(){repo.close();super.onDestroy()}
     private fun openUniversity(){startActivity(Intent(this,LiveCampusActivity::class.java))}
-    private fun handleAuth(intent:Intent){universitySignIn.complete(intent){ok,message->runOnUiThread{if(ok)openUniversity()else notice("Sign-in",message)}}}
     override fun onSaveInstanceState(out:Bundle){super.onSaveInstanceState(out);out.putString("screen",screen);out.putInt("filter",filter);out.putString("delivery",selectedDelivery);out.putInt("step",wizardStep);out.putString("pickup",draftPickup);out.putString("dropoff",draftDropoff);out.putString("description",draftDescription);out.putDouble("weight",draftWeight);out.putDouble("reward",draftReward);out.putLong("start",draftStart);out.putLong("end",draftEnd)}
     private fun go(page:String){(getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(window.decorView.windowToken,0);screen=page;render()}
     private fun render(){
@@ -150,8 +147,8 @@ class MainActivity : AppCompatActivity() {
         body.addView(text("CampusRelay",32f,ink,true));space(h=14);body.addView(text(s(R.string.welcome_title),35f,green,true));space(h=16);body.addView(text(s(R.string.welcome_subtitle),16f,muted))
         space(h=24)
         val art=CampusMap(this,dark).apply{deliveries=repo.deliveries().take(2)};body.addView(art,LinearLayout.LayoutParams(-1,dp(155)));space(h=20)
-        button("Continue with Emeris"){if(ServiceConfig(this).configured)universitySignIn.start{ok,message->runOnUiThread{if(ok)openUniversity()else notice("University sign-in",message)}} else go("services")}
-        if(SecureSession(this).read()?.isAuthorized==true&&BiometricGate.isAvailable(this))button("Unlock university account",primary=false){BiometricGate.authenticate(this,"Unlock CampusRelay",{openUniversity()}){notice("Biometric sign-in",it)}}
+        button("Continue with Google"){if(ServiceConfig(this).configured)googleSso.start{ok,message->runOnUiThread{if(ok)openUniversity()else notice("Google sign-in",message)}} else go("services")}
+        if(GoogleSession(this).read()?.isAuthorized==true&&BiometricGate.isAvailable(this))button("Unlock Google account",primary=false){BiometricGate.authenticate(this,"Unlock CampusRelay",{openUniversity()}){notice("Biometric sign-in",it)}}
         button(s(R.string.explore_demo),primary=false){val enter={localPrefs.edit().putBoolean("demo_session",true).apply();go("home")};if(repo.preferences.biometricLock)BiometricGate.authenticate(this,"Unlock CampusRelay",enter){notice("Biometric sign-in",it)}else enter()}
         space(h=12);body.addView(text(s(R.string.security_note),11f,muted).apply{gravity=Gravity.CENTER})
     }
@@ -279,7 +276,7 @@ class MainActivity : AppCompatActivity() {
         space(h=20);addLabel(s(R.string.notifications));toggle(s(R.string.notifications),"Remote push requires Firebase configuration",repo.preferences.notifications){repo.updatePreferences(repo.preferences.copy(notifications=it));PushSupport.setEnabled(this,it)}
         space(h=20);addLabel(s(R.string.preferences));card().apply{val r=row();r.addView(text(s(R.string.language),15f,ink,true),LinearLayout.LayoutParams(0,-2,1f));r.addView(text(when(repo.preferences.language){"zu"->"isiZulu";"af"->"Afrikaans";else->"English"}+"  ›",13f,muted));addView(r);setOnClickListener{chooseLanguage()}}
         toggle(s(R.string.dark_mode),"",repo.preferences.darkMode){repo.updatePreferences(repo.preferences.copy(darkMode=it));delegate.localNightMode=if(it)AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO;render()}
-        button("University & API connection",primary=false){go("services")};button(s(R.string.sign_out),primary=false){localPrefs.edit().putBoolean("demo_session",false).apply();universitySignIn.signOut();go("welcome")};demoStrip()
+        button("Google & API connection",primary=false){go("services")};button(s(R.string.sign_out),primary=false){localPrefs.edit().putBoolean("demo_session",false).apply();googleSso.signOut();go("welcome")};demoStrip()
     }
     private fun toggle(title:String,description:String,checked:Boolean,change:(Boolean)->Unit){card().apply{val r=row();val c=col();c.addView(text(title,14f,ink,true));if(description.isNotEmpty()){space(c,6);c.addView(text(description,11f,muted))};r.addView(c,LinearLayout.LayoutParams(0,-2,1f));r.addView(Switch(this@MainActivity).apply{isChecked=checked;contentDescription=title;setOnCheckedChangeListener{_,isChecked->change(isChecked)}});addView(r)}}
     private fun chooseLanguage(){val values=listOf("English","isiZulu","Afrikaans");val tags=listOf("en","zu","af");AlertDialog.Builder(this).setTitle(s(R.string.language)).setSingleChoiceItems(values.toTypedArray(),tags.indexOf(repo.preferences.language)){dialog,index->repo.updatePreferences(repo.preferences.copy(language=tags[index]));localPrefs.edit().putString("language",tags[index]).apply();dialog.dismiss();recreate()}.setNegativeButton(s(R.string.cancel),null).show()}
@@ -303,11 +300,11 @@ class MainActivity : AppCompatActivity() {
         }catch(_:Exception){}
         return text(initials(name),22f,Color.WHITE,true).apply{gravity=Gravity.CENTER;background=surface(green,dp(40).toFloat())}
     }
-    private fun services(){heading("Connect to Emeris","University services are not configured yet.");card().apply{addView(text("A verified campus community",20f,ink,true));space(this,10);addView(text("Enter the official app registration details supplied by Emeris. Demo records remain local and are never uploaded as real university activity.",13f,muted))}
+    private fun services(){heading("Connect CampusRelay","Sign in with Google through Firebase Authentication.");card().apply{addView(text("Google Sign-In",20f,ink,true));space(this,10);addView(text("Firebase configuration comes from app/google-services.json. Enter only the deployed CampusRelay API address here. Demo records remain on this device.",13f,muted))}
         val cfg=ServiceConfig(this)
-        if(SecureSession(this).read()?.isAuthorized==true)button("Open university workspace"){openUniversity()}
-        val tenant=field("Microsoft tenant ID","Directory / tenant UUID",cfg.tenantId);val client=field("Application client ID","Public Android application UUID",cfg.clientId);val domain=field("Verified campus email domain","Official campus domain",cfg.allowedDomain);val api=field("CampusRelay API URL","https://your-api.example.com",cfg.apiBaseUrl)
-        button("Save connection"){attempt{cfg.configure(tenant.text.toString().trim(),client.text.toString().trim(),api.text.toString().trim(),domain.text.toString().trim());notice("Connection saved","Use Continue with Emeris on the welcome screen. The API validates university tokens; no local demo profile becomes a verified identity.")}}
-        button("Continue with Emeris",primary=false){if(cfg.configured)universitySignIn.start{ok,message->runOnUiThread{if(ok)openUniversity()else notice("University sign-in",message)}}else notice("Configuration needed","Ask your Emeris administrator for the official tenant, client ID, allowed domain, and API URL. Do not enter passwords here.")};demoStrip()
+        if(GoogleSession(this).read()?.isAuthorized==true)button("Open connected workspace"){openUniversity()}
+        val api=field("CampusRelay API URL","https://your-api.example.com",cfg.apiBaseUrl)
+        button("Save connection"){attempt{cfg.configure(api.text.toString().trim());notice("Connection saved","Use Continue with Google on the welcome screen. Firebase authenticates the Google account and the API validates its Firebase ID token.")}}
+        button("Continue with Google",primary=false){if(cfg.configured)googleSso.start{ok,message->runOnUiThread{if(ok)openUniversity()else notice("Google sign-in",message)}}else notice("API URL needed","Enter the deployed HTTPS CampusRelay API URL first.")};demoStrip()
     }
 }

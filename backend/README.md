@@ -13,20 +13,18 @@ export DOTNET_ROOT=/workspace/toolchains/dotnet8
 export DOTNET_CLI_HOME=/workspace/toolchains/dotnet-home
 export NUGET_PACKAGES=/workspace/toolchains/nuget
 export ASPNETCORE_ENVIRONMENT=Development
-# Configure these with your actual university's Entra ID application registration:
-export Identity__TenantId='<tenant GUID>'
-export Identity__Audience='<API application audience>'
-export Identity__AllowedEmailDomain='<university email domain, without @>'
+# Use the same Firebase project as app/google-services.json:
+export Firebase__ProjectId='<firebase-project-id>'
 dotnet run --project CampusRelay.Api --urls http://127.0.0.1:5080
 ```
 
-Development creates a local `campusrelay.db` SQLite database automatically. `GET /health` is public. Every `/api/v1` route requires a **valid, unexpired Microsoft Entra access token** with the configured issuer, audience, `tid`, `sub`, and university `email` or `preferred_username` domain. Without identity settings the development server starts for health checks, but protected routes remain inaccessible. Production startup fails if identity settings are missing. The Android app needs its own public-client app registration, MSAL/AppAuth redirect URI, delegated API scope, and HTTPS API URL; the API audience must match the access token, rather than the Android client ID or an ID token.
+Development creates a local `campusrelay.db` SQLite database automatically. `GET /health` is public. Every `/api/v1` route requires a valid, unexpired **Firebase ID token issued by the configured project through the Google provider**. The token must contain a subject, verified email, and `firebase.sign_in_provider = google.com`. Without a project ID the development server starts for health checks, but protected routes remain inaccessible. Production startup fails if `Firebase:ProjectId` is missing. Microsoft/Entra and other SSO providers are not accepted.
 
 Local HTTP is for development probes only. Deploy behind a trusted TLS endpoint supporting HTTP/2, configure trusted hostnames using `AllowedHosts`, and use private SQL connectivity as appropriate. Do not expose the local HTTP service publicly. Never place signing keys, access tokens, SQL passwords, or Firebase credentials in source control or Android resources.
 
 ## SQL Server / Azure SQL
 
-Set `Database__Provider=SqlServer`, `ConnectionStrings__Campus` securely to the SQL Server connection string (TLS encryption enabled), the three identity settings above, and the deployment's `AllowedHosts`. The included migrations target SQL Server; local SQLite uses a separate, disposable development schema. Do not point local SQLite at a production database.
+Set `Database__Provider=SqlServer`, `ConnectionStrings__Campus` securely to the SQL Server connection string (TLS encryption enabled), `Firebase__ProjectId`, and the deployment's `AllowedHosts`. The included migrations target SQL Server; local SQLite uses a separate, disposable development schema. Do not point local SQLite at a production database.
 
 Review and apply the initial migration during controlled deployment:
 
@@ -43,7 +41,7 @@ dotnet ef database update --project CampusRelay.Api
 
 ## API contract
 
-Requests and responses use camelCase JSON. IDs are UUID strings. UTC date-times use ISO 8601 with `Z`. Prices are integer cents. Successful creates return 201; normal reads/transitions 200; validation 400; invalid/missing identity 401; wrong tenant/domain/member or private transaction access 403; missing entity 404; conflicting state 409.
+Requests and responses use camelCase JSON. IDs are UUID strings. UTC date-times use ISO 8601 with `Z`. Prices are integer cents. Successful creates return 201; normal reads/transitions 200; validation 400; invalid/missing Firebase identity 401; non-Google provider or private transaction access 403; missing entity 404; conflicting state 409.
 
 | Method | Path under `/api/v1` | Purpose |
 | --- | --- | --- |
@@ -134,7 +132,7 @@ dotnet test CampusRelay.Api.Tests/CampusRelay.Api.Tests.csproj
 
 The focused suite exercises database persistence, route proximity/time/capacity, handoff ownership and code, offline idempotency, seat availability, duplicate marketplace reservations, private chat, reviews, and anonymous HTTP rejection. It uses isolated in-memory SQLite and a test HTTP host; it neither disables authentication in the application nor requires university credentials.
 
-- University SSO must be registered/configured before real authenticated API use. No cloud infrastructure or tenant was provisioned here.
+- Google must be enabled under Firebase Authentication → Sign-in method before real authenticated API use. No cloud infrastructure or Firebase project credentials were provisioned here.
 - FCM device registration and a durable outbox are implemented. **FCM delivery is not implemented/configured**; an authenticated server-side Firebase Admin dispatcher with credentials, retry/dead-letter handling and device-token invalidation remains required. Pending outbox events are not presented as delivered push notifications.
 - No funds are moved. All trades retain `NOT_FUNDED` escrow until a real payment integration is implemented; no wallet withdrawal endpoint is exposed.
 - Eco values are illustrative estimates, split equally across the two participants, with an action ledger preventing double credit. They are not certified offsets.

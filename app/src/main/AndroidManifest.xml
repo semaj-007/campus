@@ -20,15 +20,6 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Campus">
-        <activity android:name="net.openid.appauth.RedirectUriReceiverActivity"
-            android:exported="true" tools:node="replace">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="campusrelay" android:host="oauth" android:path="/callback" />
-            </intent-filter>
-        </activity>
         <service android:name=".services.CampusMessagingService" android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />

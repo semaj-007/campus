@@ -36,7 +36,7 @@
     <string name="edit_profile">Wysig profiel</string>
     <string name="sign_out">Meld af</string>
     <string name="sign_in">Meld aan</string>
-    <string name="continue_microsoft">Gaan voort met Microsoft</string>
+    <string name="continue_google">Gaan voort met Google</string>
     <string name="explore_demo">Verken die demo</string>
     <string name="demo_mode">Demomodus</string>
     <string name="demo_notice">Plaaslike demo · veranderinge bly op hierdie toestel</string>
@@ -77,7 +77,7 @@
     <string name="continue_label">Gaan voort</string>
     <string name="welcome_title">’n Bietjie hulp.\n’n Groener kampus.</string>
     <string name="welcome_subtitle">Lewer af, ry saam en gee goeie dinge aan. Sommer op jou pad.</string>
-    <string name="security_note">Universiteitsaanmelding vereis jou instelling se konfigurasie.</string>
+    <string name="security_note">Google-aanmelding word deur Firebase Authentication beveilig.</string>
     <string name="local_account">Demorekening</string>
     <string name="eco_history">Omgewingsaktiwiteit</string>
     <string name="done">Klaar</string>

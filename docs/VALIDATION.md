@@ -12,7 +12,7 @@ Validated in the cloud workspace on 4 November 2026.
 | Backend tests | 20 passed, including auth policy, handoff, booking, messaging and FCM retry tests |
 | API startup | Local health request succeeded; anonymous profile request returned 401 |
 | SQL Server migration | Idempotent SQL script generated and inspected; not applied to a production database |
-| Actual Emeris SSO, remote offline sync, FCM delivery | Not executed; institution/project registration and deployed service required |
+| Actual Google/Firebase sign-in, remote offline sync, FCM delivery | Not executed; Firebase project and deployed service required |
 
 Commands:
 

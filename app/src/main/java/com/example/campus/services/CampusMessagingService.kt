@@ -52,7 +52,7 @@ object PushSupport {
         } catch (_: Exception) { false }
     }
     fun registerToken(context: Context, token: String) {
-        if (!ServiceConfig(context).configured || SecureSession(context).read()?.isAuthorized != true) return
+        if (!ServiceConfig(context).configured || GoogleSession(context).read()?.isAuthorized != true) return
         executor.execute {
             try { LiveApiClient(context).request("POST", "/api/v1/profile/device-token", JSONObject().put("token", token).put("platform", "android")) }
             catch (_: Exception) { /* Retry when sign-in/initialization is performed again. */ }
@@ -63,7 +63,7 @@ object PushSupport {
 class CampusMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) { PushSupport.registerToken(this, token) }
     override fun onMessageReceived(message: RemoteMessage) {
-        if (SecureSession(this).read()?.isAuthorized != true) return
+        if (GoogleSession(this).read()?.isAuthorized != true) return
         val prefs = getSharedPreferences("campus_push", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("enabled", true)) return
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return

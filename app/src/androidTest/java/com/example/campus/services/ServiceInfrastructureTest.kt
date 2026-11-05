@@ -37,7 +37,7 @@ class ServiceInfrastructureTest {
 
     @Test fun serviceConfigurationRejectsUnencryptedEndpoints() {
         try {
-            ServiceConfig(context).configure("university-tenant", "public-client", "http://localhost:5000", "example.ac.za")
+            ServiceConfig(context).configure("http://localhost:5000")
             fail("An unencrypted API must not be accepted")
         } catch (expected: IllegalArgumentException) {
             assertTrue(expected.message.orEmpty().contains("HTTPS"))

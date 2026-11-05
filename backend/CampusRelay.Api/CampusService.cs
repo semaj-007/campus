@@ -39,7 +39,7 @@ public sealed class CampusService(CampusDb db)
         var subject = principal.FindFirstValue("sub"); Rules.Require(!string.IsNullOrEmpty(subject), "Authentication required.", 401);
         var user = await db.Users.SingleOrDefaultAsync(x => x.Subject == subject);
         if (user != null) return user;
-        user = new CampusUser { Subject = subject!, Email = principal.FindFirstValue("email") ?? principal.FindFirstValue("preferred_username") ?? "", FullName = principal.FindFirstValue("name") ?? "Campus member" };
+        user = new CampusUser { Subject = subject!, Email = principal.FindFirstValue("email") ?? "", FullName = principal.FindFirstValue("name") ?? "Campus member" };
         db.Users.Add(user); await db.SaveChangesAsync(); return user;
     }
     public async Task<CampusUser> UpdateProfile(ClaimsPrincipal p, ProfileInput input)

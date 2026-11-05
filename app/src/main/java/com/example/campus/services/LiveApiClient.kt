@@ -2,7 +2,6 @@ package com.example.campus.services
 
 import android.content.Context
 import android.os.Looper
-import net.openid.appauth.AuthorizationService
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -10,7 +9,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import org.json.JSONArray
 import java.io.IOException
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class ApiException(val status: Int, message: String) : IOException(message)
@@ -25,21 +23,8 @@ class LiveApiClient(context: Context) {
         check(Looper.myLooper() != Looper.getMainLooper()) { "API requests must run on a background thread." }
         require(config.configured) { "Campus API is not configured." }
         require(path.startsWith("/api/v1/") && !path.contains("..") && !path.contains("://")) { "Invalid API path." }
-        val session = SecureSession(context)
-        val state = session.read() ?: throw ApiException(401, "Sign in through your university first.")
-        val service = AuthorizationService(context)
-        val latch = CountDownLatch(1)
-        var accessToken: String? = null
-        var failed = false
-        try {
-            state.performActionWithFreshTokens(service) { token, _, exception ->
-                accessToken = token
-                failed = exception != null
-                if (!failed) session.save(state)
-                latch.countDown()
-            }
-            if (!latch.await(30, TimeUnit.SECONDS) || failed || accessToken.isNullOrBlank()) throw ApiException(401, "Your university session expired. Sign in again.")
-        } finally { service.dispose() }
+        val accessToken = GoogleSession(context).read()?.idToken()
+            ?: throw ApiException(401, "Sign in with Google first.")
         val body = payload?.toString()?.toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder().url(config.apiBaseUrl + path)
             .header("Authorization", "Bearer $accessToken").header("Accept", "application/json")
@@ -47,8 +32,8 @@ class LiveApiClient(context: Context) {
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw ApiException(response.code, when (response.code) {
                 400 -> "The campus API rejected these details. Check your request."
-                401 -> "Your university session expired. Sign in again."
-                403 -> "This account is not authorized by the university."
+                401 -> "Your Google session expired. Sign in again."
+                403 -> "This Google account is not authorized."
                 404 -> "The requested campus item is unavailable."
                 409 -> "This item changed. Refresh before trying again."
                 else -> "The campus API is unavailable (HTTP ${response.code}). Try again later."

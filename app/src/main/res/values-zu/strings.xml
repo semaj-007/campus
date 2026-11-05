@@ -36,7 +36,7 @@
     <string name="edit_profile">Hlela iphrofayela</string>
     <string name="sign_out">Phuma</string>
     <string name="sign_in">Ngena ngemvume</string>
-    <string name="continue_microsoft">Qhubeka nge-Microsoft</string>
+    <string name="continue_google">Qhubeka nge-Google</string>
     <string name="explore_demo">Hlola idemo</string>
     <string name="demo_mode">Imodi yedemo</string>
     <string name="demo_notice">Idemo yasendaweni · izinguquko zigcinwa kule divayisi</string>
@@ -77,7 +77,7 @@
     <string name="continue_label">Qhubeka</string>
     <string name="welcome_title">Usizo oluncane.\nIkhempasi enakekela imvelo.</string>
     <string name="welcome_subtitle">Letha izinto, wabelane ngohambo, udlulisele okuhle kwabanye. Konke usendleleni.</string>
-    <string name="security_note">Ukungena ngenyuvesi kudinga izilungiselelo zesikhungo sakho.</string>
+    <string name="security_note">Ukungena nge-Google kuvikelwe yi-Firebase Authentication.</string>
     <string name="local_account">I-akhawunti yedemo</string>
     <string name="eco_history">Imisebenzi yemvelo</string>
     <string name="done">Kwenziwe</string>

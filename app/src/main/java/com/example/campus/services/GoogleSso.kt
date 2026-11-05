@@ -1,0 +1,82 @@
+package com.example.campus.services
+
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.fragment.app.FragmentActivity
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
+import java.util.concurrent.Executors
+
+/** Google account selection followed by Firebase Authentication. */
+class GoogleSso(private val activity: FragmentActivity) {
+    private var listener: ((Boolean, String) -> Unit)? = null
+    private var client: com.google.android.gms.auth.api.signin.GoogleSignInClient? = null
+    private val launcher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val callback = listener ?: return@registerForActivityResult
+        try {
+            val account = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                .getResult(com.google.android.gms.common.api.ApiException::class.java)
+            val token = account.idToken ?: throw IllegalStateException("Firebase did not return a Google ID token.")
+            FirebaseAuth.getInstance().signInWithCredential(GoogleAuthProvider.getCredential(token, null))
+                .addOnSuccessListener { verifyWithApi(callback) }
+                .addOnFailureListener { callback(false, "Google sign-in could not be completed. ${it.localizedMessage.orEmpty()}") }
+        } catch (_: Exception) {
+            callback(false, "Google sign-in was cancelled or could not be completed.")
+        }
+    }
+
+    fun start(onResult: (Boolean, String) -> Unit) {
+        listener = onResult
+        if (!ServiceConfig(activity).configured) {
+            onResult(false, "Set the CampusRelay HTTPS API URL before signing in with Google.")
+            return
+        }
+        if (!PushSupport.initialize(activity)) {
+            onResult(false, "Firebase is not configured. Add the google-services.json file for com.example.campus and sync Gradle.")
+            return
+        }
+        val webClientId = webClientId()
+        if (webClientId == null) {
+            onResult(false, "Google Sign-In is missing its Web client ID. Enable Google in Firebase Authentication, then download google-services.json again.")
+            return
+        }
+        val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(webClientId).requestEmail().build()
+        client = GoogleSignIn.getClient(activity, options)
+        launcher.launch(client!!.signInIntent)
+    }
+
+    private fun verifyWithApi(callback: (Boolean, String) -> Unit) {
+        verifier.execute {
+            try {
+                val profile = LiveApiClient(activity).request("GET", "/api/v1/profile")
+                LiveSnapshotStore(activity.applicationContext).bind(profile)
+                OfflineQueue.schedule(activity.applicationContext)
+                PushSupport.initialize(activity.applicationContext)
+                activity.runOnUiThread { callback(true, "Google account verified.") }
+            } catch (error: Exception) {
+                FirebaseAuth.getInstance().signOut()
+                activity.runOnUiThread { callback(false, "Google sign-in succeeded, but the CampusRelay API could not verify it. ${error.message.orEmpty()}") }
+            }
+        }
+    }
+
+    fun signOut() {
+        try { FirebaseAuth.getInstance().signOut() } catch (_: IllegalStateException) { }
+        val webClientId = webClientId()
+        if (client == null && webClientId != null) {
+            val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(webClientId).requestEmail().build()
+            client = GoogleSignIn.getClient(activity, options)
+        }
+        client?.signOut()
+        LiveSnapshotStore(activity.applicationContext).unbind()
+        androidx.core.app.NotificationManagerCompat.from(activity).cancelAll()
+    }
+    private fun webClientId(): String? {
+        val resourceId = activity.resources.getIdentifier("default_web_client_id", "string", activity.packageName)
+        return if (resourceId == 0) null else activity.getString(resourceId).takeIf { it.isNotBlank() }
+    }
+    companion object { private val verifier = Executors.newSingleThreadExecutor() }
+}
