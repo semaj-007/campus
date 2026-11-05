@@ -74,6 +74,7 @@ app.Use(async (context, next) =>
 });
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapGet("/", () => Results.Ok(new { service = "CampusRelay", status = "ok", health = "/health", api = "/api/v1" }));
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "CampusRelay" }));
 var api = app.MapGroup("/api/v1").RequireAuthorization("Campus");
 api.MapGet("/account/status", async (CampusService s, ClaimsPrincipal u) => Results.Ok(await s.AccountStatus(u)));

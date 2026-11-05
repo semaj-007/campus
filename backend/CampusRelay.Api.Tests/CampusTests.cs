@@ -101,7 +101,7 @@ public class ApiSecurityTests
     [Fact] public async Task HealthWorksButProtectedApiRejectsAnonymousClients()
     {
         await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(x => x.UseEnvironment("Testing"));
-        var client = factory.CreateClient(); Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
+        var client = factory.CreateClient(); Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/")).StatusCode); Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/profile")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsync("/api/v1/deliveries", null)).StatusCode);
     }
