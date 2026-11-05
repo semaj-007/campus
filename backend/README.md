@@ -10,6 +10,8 @@ When Render prompts for `Firebase__ProjectId`, enter the Firebase **Project ID**
 
 The blueprint sets `AllowedHosts=*` because Render assigns the public hostname after creating the service. TLS terminates at Render's proxy and the container listens only on Render's supplied `PORT`. Use a single instance with this SQLite deployment. For horizontal scaling or larger production use, add a supported shared database provider before increasing the instance count.
 
+If the service is created manually on Render's Free plan, the Docker image initializes SQLite under `/tmp` and accepts the assigned Render hostname. This is suitable only for a deployment check: Free instances have no persistent disk, so accounts, proof documents, and all other database records can disappear after a restart or redeploy. Set `AllowedHosts=*`, keep the `/health` health-check path, and upgrade to the Blueprint's persistent-disk plan before storing real user data.
+
 ## Run locally
 
 Requires .NET SDK 8.0.427 (pinned in `global.json`). This cloud workspace has a checksum-verified SDK at `/workspace/toolchains/dotnet8`.

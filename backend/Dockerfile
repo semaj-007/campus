@@ -10,6 +10,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 ENV ASPNETCORE_ENVIRONMENT=Production
+ENV ASPNETCORE_URLS=http://0.0.0.0:10000
+ENV AllowedHosts=*
+ENV Database__Provider=Sqlite
+ENV Database__AutoMigrate=true
+ENV ConnectionStrings__Campus="Data Source=/tmp/campusrelay.db"
 EXPOSE 10000
 USER $APP_UID
 ENTRYPOINT ["dotnet", "CampusRelay.Api.dll"]
