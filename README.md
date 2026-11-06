@@ -1,57 +1,207 @@
 # CampusRelay
 
-A native Android app for campus deliveries, shared rides, and a student marketplace, based on **Planning and Designing 2.pdf**. Emeris Pretoria is the selected campus. The cream, forest-green and gold interface follows the supplied wireframes.
+CampusRelay is a native Android application for the Emeris Pretoria campus community. It helps verified students coordinate campus deliveries, share rides, exchange second-hand items, communicate securely, and track estimated environmental impact.
 
-## Try the Android app
+## Main features
 
-Open the project in Android Studio, or build in this workspace:
+- Firebase email/password authentication
+- Google Single Sign-On through Firebase Authentication
+- Biometric account unlocking and transaction confirmation
+- Registration-proof submission for new email/password accounts
+- Campus delivery requests and courier route matching
+- QR-code delivery handoffs
+- Carpool offers and seat reservations
+- Student marketplace listings and reservations
+- Private transaction messaging and reviews
+- Push notifications through Firebase Cloud Messaging
+- Offline Room caching and WorkManager synchronization
+- English, Afrikaans, and isiZulu resources
+- Light and dark themes
+- ASP.NET Core REST API hosted on Render
 
-```bash
-cd /workspace/campus
-export JAVA_HOME=/workspace/toolchains/jdk25
-export ANDROID_HOME=/workspace/toolchains/android-sdk
-export GRADLE_USER_HOME=/workspace/.gradle
-export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
-bash gradlew :app:assembleDebug :app:testDebugUnitTest --max-workers=4
+## Technology stack
+
+| Layer | Technology |
+| --- | --- |
+| Mobile application | Kotlin, Android SDK, Room, WorkManager |
+| Authentication | Firebase Authentication and Google Sign-In |
+| Notifications | Firebase Cloud Messaging |
+| Biometrics | AndroidX Biometric |
+| QR codes | ZXing |
+| REST client | OkHttp |
+| Backend | ASP.NET Core 8 Minimal API |
+| Data access | Entity Framework Core |
+| Database | SQLite or SQL Server |
+| Hosting | Docker and Render |
+
+## Repository structure
+
+```text
+app/                     Android application
+backend/CampusRelay.Api  ASP.NET Core API
+backend/CampusRelay.Api.Tests
+                         Backend automated tests
+docs/                    Validation documentation
+render.yaml              Render Blueprint configuration
 ```
 
-Install `app/build/outputs/apk/debug/app-debug.apk` on Android 7.0/API 24 or later. Select **Explore demo** for a complete offline walkthrough. No account, payment or location permission is needed for the demo. The Gradle wrapper is invoked with `bash` because the original file has no executable bit.
+## Requirements
 
-### Local walkthrough
+- Android Studio
+- Android SDK 37
+- JDK 11 or later
+- Android phone or emulator running Android 7.0/API 24 or later
+- Firebase project
+- .NET 8 SDK for backend development
 
-1. Home → Create request. Choose distinct buildings, a delivery window, item/size and tip.
-2. Post the request, select a matching courier, and confirm pickup. The demo lets you simulate both sides of the handoff.
-3. Scan the recipient QR or enter its six-digit code to complete the delivery. An incorrect code is rejected. CO₂ estimates accrue once per completion.
-4. Track contains requests, accepted courier jobs, ride bookings and marketplace reservations.
-5. Book a seat in Carpool, then complete the demo ride in Track. Reserve an item in Marketplace, then confirm collection in Track. Reservations alone earn no eco credit.
-6. Settings supports profile editing and photos, English/isiZulu/Afrikaans, dark mode, notification preferences and biometric protection when the device has strong biometrics enrolled.
+## Firebase setup
 
-Local profiles, jobs, routes, chats, bookings and preferences survive app restarts in a private SQLite database. Seeded couriers, rides and items are fictional. Demo data never uploads into a real university account. The map is a **sample campus schematic**, using the buildings in the reference brief; it is not live GPS or a verified Emeris campus map. Actual Emeris Pretoria building locations are still to be supplied.
+1. Create or open a Firebase project.
+2. Register an Android application with package name `com.example.campus`.
+3. Run the signing report from the repository root on Windows:
 
-## Google Sign-In and connected service configuration
+   ```powershell
+   .\gradlew.bat signingReport
+   ```
 
-The app separates its local walkthrough from the connected workspace. Returning users can enter their Firebase email and password or select **Continue with Google**. Both methods send a refreshed Firebase ID token to the deployed HTTPS CampusRelay API. The API URL can be entered under Settings → Google & API connection. Microsoft/Entra and generic OIDC login have been removed.
+4. Add the debug `SHA1` and `SHA-256` values to the Firebase Android application.
+5. Enable **Google** and **Email/Password** under **Authentication → Sign-in method**.
+6. Download a fresh `google-services.json` and place it at `app/google-services.json`.
+7. Do not commit `google-services.json`. It is ignored by Git.
 
-Google accounts are treated as student-email identities and are approved automatically without document upload. New email/password members choose **Create a new account**, enter their details, and submit a current PDF, JPG, or PNG proof of institutional registration (up to 5 MB). The API records that application as `PENDING`; campus features remain locked until an institution administrator changes its `RegistrationStatus` to `APPROVED`. Proof documents are sensitive records and the production database and backups must use encryption and restricted administrator access.
+## Build and run the Android app
 
-Firebase Authentication manages sessions and token refresh. The API validates the Firebase project, token signature, lifetime, and provider. Verified `google.com` identities are approved immediately; `password` identities require an approved proof submission. Room snapshots/queued handoffs and network-constrained WorkManager synchronization remain account-partitioned. QR handoffs can require Android's strong biometric prompt.
+Open the repository in Android Studio, allow Gradle synchronization to finish, connect a phone with USB debugging enabled, and select **Run**.
 
-For your downloaded Firebase Android configuration, copy it to **`app/google-services.json`**, then select **File → Sync Project with Gradle Files** in Android Studio. The Google Services plugin and default Firebase initialization are wired automatically when that file exists; the offline demo still builds without it. Use the Firebase registration for package `com.example.campus`. The file is ignored by Git. Real push delivery still requires the authenticated university API and server Firebase Admin setup.
+From PowerShell, build and test with:
 
-See [live service integration](app/src/main/java/com/example/campus/services/INTEGRATION.md) and [backend setup/API contracts](backend/README.md).
+```powershell
+.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+```
 
-### Server
+The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`.
 
-`backend/` contains ASP.NET Core 8 / EF Core, SQLite for local development and a SQL Server migration for Azure SQL. It implements Firebase token authorization, requests/routes/matching, bookings, delivery handoffs, idempotent offline synchronization, rides, marketplace transactions, private chat, reviews, eco history and notification events. Production startup requires a Firebase project ID; no development bypass is exposed.
+## Authentication rules
 
-## Validation
+- Google SSO accounts are treated as approved student-email identities and receive immediate access.
+- New email/password accounts must submit a name, student number, and PDF/JPG/PNG proof of registration.
+- Email/password accounts remain pending until an administrator changes their registration status to `APPROVED`.
+- Firebase passwords, tokens, and service credentials are never stored in the repository.
 
-- Android: `:app:assembleDebug`, `:app:testDebugUnitTest` and `:app:assembleDebugAndroidTest`.
-- Android device tests: `:app:connectedDebugAndroidTest` with an attached device/emulator. Repository tests isolate their databases; the UI walkthrough creates a test request on its emulator or test device.
-- Backend: `dotnet test CampusRelay.Api.Tests/CampusRelay.Api.Tests.csproj` using the SDK pinned in `backend/global.json` (run from `backend` to apply its pin).
+## Connected API
 
-Tests cover route geometry/direction, time windows and capacity, invalid delivery input, CO₂ estimates, QR roundtrips, database persistence, handoff state/credits, seat limits, marketplace collection, Room queue idempotency, HTTPS configuration and server authorization.
+API root:
 
-## Deployment boundaries
+```text
+https://campus-qci7.onrender.com
+```
 
-No cloud deployment, real Google session, remote handoff sync, FCM delivery, or financial transfer has been performed. Those end-to-end checks require the Firebase project and deployed API. There is no payment gateway or real wallet withdrawal. Route matching is campus-scale straight-line proximity; it does not integrate lecture timetables or turn-by-turn navigation. Translation resources cover the primary navigation and forms; some explanatory demo and administrative text remains English.
+Health check:
+
+```text
+https://campus-qci7.onrender.com/health
+```
+
+Expected response:
+
+```json
+{
+  "status": "ok",
+  "service": "CampusRelay"
+}
+```
+
+Enter the API root address, without `/health`, on the app's **Firebase & API connection** page.
+
+## Run the backend locally
+
+From the `backend` directory:
+
+```powershell
+$env:ASPNETCORE_ENVIRONMENT="Development"
+$env:Firebase__ProjectId="YOUR_FIREBASE_PROJECT_ID"
+dotnet run --project CampusRelay.Api --urls http://127.0.0.1:5080
+```
+
+Run backend tests with:
+
+```powershell
+dotnet test CampusRelay.Api.Tests/CampusRelay.Api.Tests.csproj
+```
+
+## Render deployment
+
+The repository includes `render.yaml` and `backend/Dockerfile`.
+
+1. Create a Render Blueprint or Docker Web Service from this repository.
+2. Set the Dockerfile path to `backend/Dockerfile` when creating it manually.
+3. Configure:
+
+   ```text
+   Firebase__ProjectId=YOUR_FIREBASE_PROJECT_ID
+   Database__Provider=Sqlite
+   Database__AutoMigrate=true
+   AllowedHosts=*
+   Notifications__EnableFcm=false
+   ```
+
+4. Use `/health` as the health-check path.
+5. Use a persistent disk mounted at `/var/data` for production SQLite data.
+
+The Free Render plan uses temporary storage. Accounts, proof documents, tokens, and transaction data can disappear after a restart or redeployment. Use persistent storage before accepting real registrations.
+
+## Enable push notifications on Render
+
+1. In Firebase, open **Project settings → Service accounts** and generate a private key.
+2. In Render, create `/etc/secrets/firebase-service-account.json` as a secret file.
+3. Add:
+
+   ```text
+   Notifications__EnableFcm=true
+   Notifications__FirebaseProjectId=YOUR_FIREBASE_PROJECT_ID
+   GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/firebase-service-account.json
+   ```
+
+Never commit the service-account JSON file.
+
+## Offline synchronization
+
+The connected workspace caches account data in Room. Offline data is labelled as a cached snapshot. Verified delivery handoffs can be saved in an account-partitioned queue. WorkManager submits them when connectivity returns, and unique transaction identifiers prevent duplicate completion or eco-impact credit.
+
+## Testing
+
+Android:
+
+```powershell
+.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+```
+
+Backend:
+
+```powershell
+cd backend
+dotnet test CampusRelay.Api.Tests/CampusRelay.Api.Tests.csproj
+```
+
+Tests cover authentication policy, account verification, delivery validation, route matching, QR handoffs, offline idempotency, ride capacity, marketplace reservations, private messaging, reviews, notifications, and database persistence.
+
+## Security notes
+
+- Connected API traffic uses HTTPS.
+- The API validates Firebase token signatures, issuer, audience, lifetime, and provider.
+- Registration documents require restricted database access and encrypted backups.
+- Biometric data remains inside Android's secure biometric framework.
+- QR handoff codes are revealed only to the delivery requester.
+- Never commit Firebase private keys, service-account files, bearer tokens, or passwords.
+
+## Current limitations
+
+- The Free Render deployment does not provide durable database storage.
+- Payment is arranged between participants; there is no payment gateway or funded escrow.
+- Campus routing uses coordinate proximity rather than turn-by-turn navigation.
+- Registration approval currently requires controlled backend database administration.
+- Environmental-impact values are estimates rather than certified carbon offsets.
+
+## Author
+
+Developed as a PROG7314 portfolio-of-evidence project.
