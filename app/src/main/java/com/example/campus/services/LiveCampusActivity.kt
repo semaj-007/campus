@@ -41,8 +41,12 @@ class LiveCampusActivity : FragmentActivity() {
     private lateinit var scanner:HandoffScanner
     private var scannedCode:((String)->Unit)?=null
     private val green=Color.rgb(27,67,51)
-    private val cream=Color.rgb(247,246,240)
-    private val muted=Color.rgb(103,121,110)
+    private val livePrefs by lazy{getSharedPreferences("campus_live_ui",MODE_PRIVATE)}
+    private val dark get()=livePrefs.getBoolean("dark_mode",false)
+    private val cream get()=Color.parseColor(if(dark)"#15281F" else "#F7F6F0")
+    private val cardColor get()=Color.parseColor(if(dark)"#213A2E" else "#FFFFFF")
+    private val ink get()=Color.parseColor(if(dark)"#F1F4EA" else "#1B4333")
+    private val muted get()=Color.parseColor(if(dark)"#B0C3B4" else "#67796E")
     private val gold=Color.rgb(216,174,43)
     private val store by lazy{LiveSnapshotStore(applicationContext)}
     private val api by lazy{LiveApiClient(applicationContext)}
@@ -61,33 +65,42 @@ class LiveCampusActivity : FragmentActivity() {
         current=state?.getString("tab")?:"deliveries"
         onBackPressedDispatcher.addCallback(this,object:OnBackPressedCallback(true){override fun handleOnBackPressed(){if(current=="deliveries")finish() else deliveries()}})
         shell("Your campus","Connecting to your university account…")
-        fetch("/api/v1/profile",false){snapshot->user=snapshot.obj();when(current){"rides"->rides();"marketplace"->marketplace();"profile"->profile();"transactions"->transactions();else->deliveries()}}
+        fetch("/api/v1/profile",false){snapshot->user=snapshot.obj();when(current){"rides"->rides();"marketplace"->marketplace();"profile"->profile();"transactions"->transactions();"settings"->settings();"notifications"->notifications();else->deliveries()}}
     }
     override fun onSaveInstanceState(out:Bundle){super.onSaveInstanceState(out);out.putString("tab",current)}
     override fun onDestroy(){executor.shutdown();super.onDestroy()}
     private fun background(task:()->Unit){executor.execute(task)}
     private fun ui(task:()->Unit){runOnUiThread{if(!isFinishing&&!isDestroyed)task()}}
     private fun shape(color:Int,radius:Int=20)=GradientDrawable().apply{setColor(color);cornerRadius=dp(radius).toFloat()}
-    private fun text(value:String,size:Float=15f,bold:Boolean=false,color:Int=green)=TextView(this).apply{text=value;textSize=size;setTextColor(color);if(bold)setTypeface(typeface,Typeface.BOLD);setPadding(0,dp(4),0,dp(4))}
-    private fun label(value:String,size:Float=15f,bold:Boolean=false,color:Int=green){body.addView(text(value,size,bold,color))}
+    private fun text(value:String,size:Float=15f,bold:Boolean=false,color:Int=ink)=TextView(this).apply{text=value;textSize=size;setTextColor(color);if(bold)setTypeface(typeface,Typeface.BOLD);setPadding(0,dp(4),0,dp(4))}
+    private fun label(value:String,size:Float=15f,bold:Boolean=false,color:Int=ink){body.addView(text(value,size,bold,color))}
     private fun space(n:Int=12){body.addView(View(this),LinearLayout.LayoutParams(1,dp(n)))}
     private fun button(title:String,primary:Boolean=true,action:()->Unit):Button {
-        val button=Button(this).apply{text=title;textSize=14f;isAllCaps=false;minHeight=dp(48);setPadding(dp(12),dp(6),dp(12),dp(6));setTextColor(if(primary)Color.WHITE else green);background=shape(if(primary)green else Color.rgb(234,239,228),14);setOnClickListener{try{action()}catch(e:Exception){notice(e.message?:"Check your details.")}}}
+        val button=Button(this).apply{text=title;textSize=14f;isAllCaps=false;minHeight=dp(48);setPadding(dp(12),dp(6),dp(12),dp(6));setTextColor(if(primary)Color.WHITE else ink);background=shape(if(primary)green else cardColor,14);setOnClickListener{try{action()}catch(e:Exception){notice(e.message?:"Check your details.")}}}
         body.addView(button,LinearLayout.LayoutParams(-1,dp(50)).apply{topMargin=dp(10)});return button
     }
     private fun shell(title:String,subtitle:String){
         generation++;offline=false
         val frame=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setBackgroundColor(cream)}
         val top=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(20),dp(12),dp(20),dp(4))}
-        top.addView(text("CampusRelay",23f,true),LinearLayout.LayoutParams(0,-2,1f));top.addView(text("LIVE",12f,true).apply{setPadding(dp(12),dp(7),dp(12),dp(7));background=shape(Color.rgb(220,235,222),20)})
+        val accountName=user.string("fullName").ifBlank{"Campus member"}.substringBefore(" ")
+        val brand=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;addView(text("EMERIS PRETORIA  /  CAMPUS LIFE",10f,true,muted));addView(text(if(user.length()>0)"Hi, $accountName" else "CampusRelay",23f,true))}
+        top.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
+        top.addView(text("●",24f,true,gold).apply{gravity=Gravity.CENTER;contentDescription="Notifications";setPadding(dp(12),dp(8),dp(12),dp(8));setOnClickListener{notifications()}},LinearLayout.LayoutParams(dp(48),dp(48)))
         frame.addView(top)
         val scroll=ScrollView(this).apply{isFillViewport=true}
         body=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(20),dp(8),dp(20),dp(28))}
         scroll.addView(body);frame.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-        val nav=LinearLayout(this).apply{setPadding(dp(10),dp(8),dp(10),dp(8));setBackgroundColor(Color.WHITE)}
-        listOf("Deliveries" to {deliveries()},"Rides" to {rides()},"Market" to {marketplace()},"Activity" to {transactions()},"Profile" to {profile()}).forEach{(title,action)->
-            nav.addView(TextView(this).apply{text=title;textSize=11f;gravity=Gravity.CENTER;setTextColor(green);minHeight=dp(48);setOnClickListener{action()}},LinearLayout.LayoutParams(0,-2,1f))}
+        val nav=LinearLayout(this).apply{setPadding(dp(10),dp(8),dp(10),dp(8));setBackgroundColor(cardColor)}
+        listOf(Triple("deliveries","⌂\nHome",{deliveries()}),Triple("transactions","⌖\nTrack",{transactions()}),Triple("settings","☷\nSettings",{settings()})).forEach{(page,title,action)->
+            val active=current==page
+            nav.addView(TextView(this).apply{text=title;textSize=11f;gravity=Gravity.CENTER;setTextColor(if(active)if(dark)Color.WHITE else green else muted);minHeight=dp(52);if(active)background=shape(if(dark)Color.rgb(48,77,58) else Color.rgb(238,242,231),14);setOnClickListener{action()}},LinearLayout.LayoutParams(0,-2,1f).apply{marginStart=dp(5);marginEnd=dp(5)})}
         frame.addView(nav);setContentView(frame)
+        @Suppress("DEPRECATION")
+        window.statusBarColor=cream
+        @Suppress("DEPRECATION")
+        window.navigationBarColor=cardColor
+        androidx.core.view.WindowCompat.getInsetsController(window,frame).isAppearanceLightStatusBars=!dark
         ViewCompat.setOnApplyWindowInsetsListener(frame){view,insets->val i=insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime());view.setPadding(i.left,i.top,i.right,i.bottom);insets}
         ViewCompat.requestApplyInsets(frame)
         label(title,26f,true);label(subtitle,14f,false,muted);space()
@@ -98,7 +111,7 @@ class LiveCampusActivity : FragmentActivity() {
         val progress=ProgressBar(this);body.addView(progress)
         background{
             try{val result=store.load(path,array);ui{if(ticket==generation){body.removeView(progress);offline=result.cached;if(result.cached)label("Offline snapshot · updated ${date(result.updatedAt)}. Changes require a connection, except queued handoffs.",13f,true,muted);done(result)}}}
-            catch(e:Exception){ui{if(ticket==generation){body.removeView(progress);label(e.message?:"Campus service unavailable.",15f,false,muted);button("Try again",false){when(current){"rides"->rides();"marketplace"->marketplace();"profile"->profile();"transactions"->transactions();else->deliveries()}}}}}
+            catch(e:Exception){ui{if(ticket==generation){body.removeView(progress);label(e.message?:"Campus service unavailable.",15f,false,muted);button("Try again",false){when(current){"rides"->rides();"marketplace"->marketplace();"profile"->profile();"transactions"->transactions();"settings"->settings();"notifications"->notifications();else->deliveries()}}}}}
         }
     }
     private fun action(method:String,path:String,payload:JSONObject?=null,after:(JSONObject)->Unit){
@@ -108,14 +121,14 @@ class LiveCampusActivity : FragmentActivity() {
     }
     private fun field(title:String,hint:String="",value:String="",numeric:Boolean=false):EditText{
         label(title,13f,true,muted)
-        return EditText(this).apply{setText(value);this.hint=hint;textSize=15f;setSingleLine();setTextColor(green);setHintTextColor(muted);setPadding(dp(14),dp(8),dp(14),dp(8));background=shape(Color.WHITE,12);if(numeric)inputType=InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED;body.addView(this,LinearLayout.LayoutParams(-1,dp(50)).apply{bottomMargin=dp(12)})}
+        return EditText(this).apply{setText(value);this.hint=hint;textSize=15f;setSingleLine();setTextColor(ink);setHintTextColor(muted);setPadding(dp(14),dp(8),dp(14),dp(8));background=shape(cardColor,12);if(numeric)inputType=InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED;body.addView(this,LinearLayout.LayoutParams(-1,dp(50)).apply{bottomMargin=dp(12)})}
     }
     private fun pick(title:String,options:List<String>):Spinner{
         label(title,13f,true,muted)
-        return Spinner(this).apply{adapter=ArrayAdapter(this@LiveCampusActivity,android.R.layout.simple_spinner_dropdown_item,options);background=shape(Color.WHITE,12);body.addView(this,LinearLayout.LayoutParams(-1,dp(50)).apply{bottomMargin=dp(12)})}
+        return Spinner(this).apply{adapter=ArrayAdapter(this@LiveCampusActivity,android.R.layout.simple_spinner_dropdown_item,options);background=shape(cardColor,12);body.addView(this,LinearLayout.LayoutParams(-1,dp(50)).apply{bottomMargin=dp(12)})}
     }
     private fun card(title:String,detail:String,tag:String="",onClick:(()->Unit)?=null){
-        val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),dp(15),dp(18),dp(15));background=shape(Color.WHITE,18)}
+        val box=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),dp(15),dp(18),dp(15));background=shape(cardColor,18)}
         if(tag.isNotBlank())box.addView(text(tag,11f,true,muted))
         box.addView(text(title,17f,true));box.addView(text(detail,14f,false,muted))
         body.addView(box,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
@@ -137,7 +150,12 @@ class LiveCampusActivity : FragmentActivity() {
     private fun required(input:EditText,label:String):String=input.text.toString().trim().also{require(it.isNotEmpty()){ "Enter $label." }}
 
     private fun deliveries(){current="deliveries";shell("A little help, on your way.","Real requests from your verified university community.")
+        card(String.format(Locale.US,"%.2f kg CO₂",user.optDouble("ecoScoreKg")),"Your estimated campus impact","ECO IMPACT"){eco()}
+        label("QUICK ACTIONS",12f,true,muted)
+        card("Share a ride","Offer a lift or find a campus journey","CARPOOL"){rides()}
+        card("Campus marketplace","Pass useful items on within the community","MARKETPLACE"){marketplace()}
         button("＋ New delivery request"){deliveryForm(false)};button("Offer your campus route",false){deliveryForm(true)};space()
+        label("NEARBY DELIVERY REQUESTS",12f,true,muted);space(6)
         fetch("/api/v1/deliveries",true){snapshot->each(snapshot.array()){d->card(d.string("itemDescription"),"${d.string("pickupBuilding")} → ${d.string("dropoffBuilding")}\n${d.optDouble("weightKg")} kg · ${amount(d.optLong("rewardCents"))}",pretty(d.string("status"))){detail(d.string("id"))}}}
     }
     private fun deliveryForm(route:Boolean){
@@ -174,13 +192,14 @@ class LiveCampusActivity : FragmentActivity() {
                 button("Verify handoff"){
                     val value=required(code,"handoff code")
                     val complete={action("POST","/api/v1/deliveries/$id/handoff",JSONObject().put("scannedQrHash",value)){detail(id)}}
-                    BiometricGate.authenticate(this,"Confirm delivery handoff",complete){notice(it)}
+                    if(livePrefs.getBoolean("biometric",true))BiometricGate.authenticate(this,"Confirm delivery handoff",complete){notice(it)}else complete()
                 }
                 button("Save handoff for offline sync",false){
                     val value=required(code,"handoff code")
-                    BiometricGate.authenticate(this,"Save verified handoff",{
+                    val save={
                         OfflineQueue.enqueue(this,id,value,user.string("id")){ui{notice("Handoff securely queued on this device. It remains pending until the campus API accepts it.")}}
-                    }){notice(it)}
+                    }
+                    if(livePrefs.getBoolean("biometric",true))BiometricGate.authenticate(this,"Save verified handoff",save){notice(it)}else save()
                 }
             }
             val trade=d.string("tradeId");if(trade.isNotBlank())button("Open conversation",false){messages(trade)}
@@ -224,7 +243,7 @@ class LiveCampusActivity : FragmentActivity() {
         fetch("/api/v1/transactions",true){snapshot->each(snapshot.array()){trade->card(pretty(trade.string("type")),"${amount(trade.optLong("agreedPriceCents"))}\nPayment handled between participants; no in-app escrow is funded.",pretty(trade.string("status")))
             button("Conversation",false){messages(trade.string("id"))}
             if(trade.string("type")=="DELIVERY")button("View delivery",false){detail(trade.string("serviceRefId"))}
-            else if(trade.string("providerId")==user.string("id")&&trade.string("status")=="ACCEPTED")button("Confirm fulfilment"){confirm("Confirm that this ride or item exchange has been completed?"){BiometricGate.authenticate(this,"Confirm fulfilment",{action("POST","/api/v1/transactions/${trade.string("id")}/complete"){transactions()}}){notice(it)}}}
+            else if(trade.string("providerId")==user.string("id")&&trade.string("status")=="ACCEPTED")button("Confirm fulfilment"){confirm("Confirm that this ride or item exchange has been completed?"){val complete={action("POST","/api/v1/transactions/${trade.string("id")}/complete"){transactions()}};if(livePrefs.getBoolean("biometric",true))BiometricGate.authenticate(this,"Confirm fulfilment",complete){notice(it)}else complete()}}
             if(trade.string("status")=="COMPLETED")button("Leave a review",false){review(trade.string("id"))}
         }}
     }
@@ -241,10 +260,42 @@ class LiveCampusActivity : FragmentActivity() {
         fetch("/api/v1/profile",false){snapshot->user=snapshot.obj();val p=user
             card(p.string("fullName"),p.string("email"),"UNIVERSITY ACCOUNT")
             val name=field("Full name",value=p.string("fullName"));val bio=field("Bio",value=p.string("bio"));val location=field("Campus location",value=p.string("campusLocation"));val lang=pick("Language",listOf("en","zu","af"));lang.setSelection(listOf("en","zu","af").indexOf(p.string("language")).coerceAtLeast(0))
-            button("Save profile"){action("PUT","/api/v1/profile",JSONObject().put("fullName",required(name,"name")).put("bio",bio.text.toString()).put("campusLocation",required(location,"campus location")).put("language",lang.selectedItem.toString())){profile()}}
-            button("View eco impact",false){eco()};button("Offline handoff queue",false){queue()};button("Return to app",false){finish()}
-            button("Sign out",false){GoogleSession(this).clear();store.unbind();androidx.core.app.NotificationManagerCompat.from(this).cancelAll();finish()}
+            button("Save profile"){action("PUT","/api/v1/profile",JSONObject().put("fullName",required(name,"name")).put("bio",bio.text.toString()).put("campusLocation",required(location,"campus location")).put("language",lang.selectedItem.toString())){user=it;profile()}}
+            button("View eco impact",false){eco()};button("Offline handoff queue",false){queue()};button("Back to settings",false){settings()}
         }
+    }
+    private fun settings(){current="settings";shell("Settings","Manage your connected account and app preferences.")
+        val email=user.string("email");val name=user.string("fullName").ifBlank{"Campus member"}
+        card(name,email,"CONNECTED ACCOUNT"){profile()}
+        label("ACCOUNT",12f,true,muted)
+        button("Edit profile",false){profile()}
+        button("View notifications",false){notifications()}
+        space();label("PREFERENCES",12f,true,muted)
+        val pushPrefs=getSharedPreferences("campus_push",MODE_PRIVATE)
+        val notificationRow=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(18),dp(12),dp(12),dp(12));background=shape(cardColor,18)}
+        notificationRow.addView(text("Push notifications",15f,true),LinearLayout.LayoutParams(0,-2,1f))
+        notificationRow.addView(Switch(this).apply{isChecked=pushPrefs.getBoolean("enabled",true);contentDescription="Push notifications";setOnCheckedChangeListener{_,enabled->
+            PushSupport.setEnabled(this@LiveCampusActivity,enabled)
+            if(enabled&&Build.VERSION.SDK_INT>=33&&ContextCompat.checkSelfPermission(this@LiveCampusActivity,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }})
+        body.addView(notificationRow,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
+        preferenceSwitch("Dark mode",dark){enabled->livePrefs.edit().putBoolean("dark_mode",enabled).apply();settings()}
+        preferenceSwitch("Biometric confirmation",livePrefs.getBoolean("biometric",true)){enabled->livePrefs.edit().putBoolean("biometric",enabled).apply()}
+        button("Eco impact",false){eco()};button("Offline handoff queue",false){queue()}
+        space();label("CONNECTION",12f,true,muted)
+        card("CampusRelay API",ServiceConfig(this).apiBaseUrl,"SECURE HTTPS CONNECTION")
+        button("Return to local demo",false){finish()}
+        button("Sign out",false){GoogleSession(this).clear();store.unbind();androidx.core.app.NotificationManagerCompat.from(this).cancelAll();startActivity(Intent(this,com.example.campus.MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK));finish()}
+    }
+    private fun preferenceSwitch(title:String,checked:Boolean,changed:(Boolean)->Unit){
+        val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(18),dp(12),dp(12),dp(12));background=shape(cardColor,18)}
+        row.addView(text(title,15f,true),LinearLayout.LayoutParams(0,-2,1f));row.addView(Switch(this).apply{isChecked=checked;contentDescription=title;setOnCheckedChangeListener{_,value->changed(value)}})
+        body.addView(row,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)})
+    }
+    private fun notifications(){current="notifications";shell("Notifications","Delivery and account activity from CampusRelay.")
+        fetch("/api/v1/notifications",true){snapshot->each(snapshot.array()){event->
+            card("Delivery ${pretty(event.string("status"))}","Delivery ${event.string("deliveryId").take(8)} · ${event.string("createdAt")}",pretty(event.string("dispatchStatus"))){event.string("deliveryId").takeIf{it.isNotBlank()}?.let{detail(it)}}
+        };button("Notification settings",false){settings()}}
     }
     private fun eco(){current="eco";shell("Small journeys. Real impact.","Your estimated savings from completed campus exchanges.")
         fetch("/api/v1/eco",false){snapshot->val e=snapshot.obj();card(String.format(Locale.US,"%.3f kg CO₂",e.optDouble("ecoScoreKg")),"Estimated emissions saved");label(e.string("calculation"),13f,false,muted);space();each(e.optJSONArray("actions")?:JSONArray()){a->card(a.string("description"),"${a.optDouble("savedKg")} kg CO₂ · ${a.string("completedAt")}")}}
