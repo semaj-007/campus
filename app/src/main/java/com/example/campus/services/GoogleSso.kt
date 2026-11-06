@@ -23,8 +23,17 @@ class GoogleSso(private val activity: FragmentActivity) {
             FirebaseAuth.getInstance().signInWithCredential(GoogleAuthProvider.getCredential(token, null))
                 .addOnSuccessListener { if (registration == null) verifyWithApi(callback) else submitRegistration(callback) }
                 .addOnFailureListener { callback(false, "Google sign-in could not be completed. ${it.localizedMessage.orEmpty()}") }
-        } catch (_: Exception) {
-            callback(false, "Google sign-in was cancelled or could not be completed.")
+        } catch (error: com.google.android.gms.common.api.ApiException) {
+            val message = when (error.statusCode) {
+                10 -> "Google Sign-In configuration does not match this app (error 10). Add this APK's SHA-1 and SHA-256 fingerprints to the Firebase Android app com.example.campus, then download google-services.json again."
+                7 -> "Google Sign-In could not reach Google (error 7). Check the internet connection and try again."
+                12501 -> "Google Sign-In was cancelled (error 12501)."
+                12500 -> "Google Sign-In failed (error 12500). Confirm that the Google provider is enabled in Firebase Authentication."
+                else -> "Google Sign-In could not be completed (error ${error.statusCode})."
+            }
+            callback(false, message)
+        } catch (error: Exception) {
+            callback(false, error.message ?: "Google Sign-In could not be completed.")
         }
     }
 
