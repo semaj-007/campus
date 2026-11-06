@@ -7,12 +7,10 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import java.util.concurrent.Executors
-import android.net.Uri
 
 /** Google account selection followed by Firebase Authentication. */
 class GoogleSso(private val activity: FragmentActivity) {
     private var listener: ((Boolean, String) -> Unit)? = null
-    private var registration: Registration? = null
     private var client: com.google.android.gms.auth.api.signin.GoogleSignInClient? = null
     private val launcher = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val callback = listener ?: return@registerForActivityResult
@@ -21,7 +19,7 @@ class GoogleSso(private val activity: FragmentActivity) {
                 .getResult(com.google.android.gms.common.api.ApiException::class.java)
             val token = account.idToken ?: throw IllegalStateException("Firebase did not return a Google ID token.")
             FirebaseAuth.getInstance().signInWithCredential(GoogleAuthProvider.getCredential(token, null))
-                .addOnSuccessListener { if (registration == null) verifyWithApi(callback) else submitRegistration(callback) }
+                .addOnSuccessListener { verifyWithApi(callback) }
                 .addOnFailureListener { callback(false, "Google sign-in could not be completed. ${it.localizedMessage.orEmpty()}") }
         } catch (error: com.google.android.gms.common.api.ApiException) {
             val message = when (error.statusCode) {
@@ -38,12 +36,6 @@ class GoogleSso(private val activity: FragmentActivity) {
     }
 
     fun start(onResult: (Boolean, String) -> Unit) {
-        registration = null
-        launch(onResult)
-    }
-
-    fun createAccount(fullName: String, studentNumber: String, proof: Uri, onResult: (Boolean, String) -> Unit) {
-        registration = Registration(fullName, studentNumber, proof)
         launch(onResult)
     }
 
@@ -66,19 +58,6 @@ class GoogleSso(private val activity: FragmentActivity) {
             .requestIdToken(webClientId).requestEmail().build()
         client = GoogleSignIn.getClient(activity, options)
         launcher.launch(client!!.signInIntent)
-    }
-
-    private fun submitRegistration(callback: (Boolean, String) -> Unit) {
-        val details = registration ?: return
-        verifier.execute {
-            try {
-                LiveApiClient(activity).submitRegistration(details.fullName, details.studentNumber, details.proof)
-                activity.runOnUiThread { callback(true, "Your proof was submitted. The institution must approve your account before you can sign in.") }
-            } catch (error: Exception) {
-                FirebaseAuth.getInstance().signOut()
-                activity.runOnUiThread { callback(false, error.message ?: "Registration could not be submitted.") }
-            }
-        }
     }
 
     private fun verifyWithApi(callback: (Boolean, String) -> Unit) {
@@ -113,5 +92,4 @@ class GoogleSso(private val activity: FragmentActivity) {
         return if (resourceId == 0) null else activity.getString(resourceId).takeIf { it.isNotBlank() }
     }
     companion object { private val verifier = Executors.newSingleThreadExecutor() }
-    private data class Registration(val fullName: String, val studentNumber: String, val proof: Uri)
 }

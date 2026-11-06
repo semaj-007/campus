@@ -28,18 +28,18 @@ builder.Services.AddAuthorization(options => options.AddPolicy("Campus", policy 
     policy.RequireAuthenticatedUser().RequireAssertion(context =>
     {
         var provider = context.User.FindFirstValue("firebase");
-        var googleProvider = false;
+        string? signInProvider = null;
         if (!string.IsNullOrWhiteSpace(provider))
         {
             try
             {
                 using var document = System.Text.Json.JsonDocument.Parse(provider);
-                googleProvider = document.RootElement.TryGetProperty("sign_in_provider", out var signInProvider) && signInProvider.GetString() == "google.com";
+                signInProvider = document.RootElement.TryGetProperty("sign_in_provider", out var providerValue) ? providerValue.GetString() : null;
             }
             catch (System.Text.Json.JsonException) { }
         }
-        return context.User.HasClaim(c => c.Type == "sub") &&
-               context.User.FindFirstValue("email_verified")?.Equals("true", StringComparison.OrdinalIgnoreCase) == true && googleProvider;
+        var verifiedGoogle = signInProvider == "google.com" && context.User.FindFirstValue("email_verified")?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+        return context.User.HasClaim(c => c.Type == "sub") && (verifiedGoogle || signInProvider == "password");
     })));
 builder.Services.AddDbContext<CampusDb>(options =>
 {

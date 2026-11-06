@@ -77,7 +77,7 @@
     <string name="continue_label">Continue</string>
     <string name="welcome_title">A little help.\nA greener campus.</string>
     <string name="welcome_subtitle">Deliver, share a ride, and pass good things on. All on your way.</string>
-    <string name="security_note">Google Sign-In is secured by Firebase Authentication.</string>
+    <string name="security_note">Account sign-in is secured by Firebase Authentication.</string>
     <string name="local_account">Demo account</string>
     <string name="eco_history">Eco activity</string>
     <string name="done">Done</string>

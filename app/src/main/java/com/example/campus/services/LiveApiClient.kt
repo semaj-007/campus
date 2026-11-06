@@ -23,7 +23,7 @@ class LiveApiClient(context: Context) {
     fun requestArray(path: String): JSONArray = JSONArray(exchange("GET", path, null))
     fun submitRegistration(fullName: String, studentNumber: String, proof: Uri): JSONObject {
         check(Looper.myLooper() != Looper.getMainLooper()) { "API requests must run on a background thread." }
-        val token = GoogleSession(context).read()?.idToken() ?: throw ApiException(401, "Sign in with Google first.")
+        val token = GoogleSession(context).read()?.idToken() ?: throw ApiException(401, "Sign in first.")
         val resolver = context.contentResolver
         val mime = resolver.getType(proof) ?: "application/octet-stream"
         val bytes = resolver.openInputStream(proof)?.use { input ->
@@ -47,7 +47,7 @@ class LiveApiClient(context: Context) {
         require(config.configured) { "Campus API is not configured." }
         require(path.startsWith("/api/v1/") && !path.contains("..") && !path.contains("://")) { "Invalid API path." }
         val accessToken = GoogleSession(context).read()?.idToken()
-            ?: throw ApiException(401, "Sign in with Google first.")
+            ?: throw ApiException(401, "Sign in first.")
         val body = payload?.toString()?.toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder().url(config.apiBaseUrl + path)
             .header("Authorization", "Bearer $accessToken").header("Accept", "application/json")
@@ -56,8 +56,8 @@ class LiveApiClient(context: Context) {
             val text = response.body?.string().orEmpty()
             if (!response.isSuccessful) throw ApiException(response.code, when (response.code) {
                 400 -> "The campus API rejected these details. Check your request."
-                401 -> "Your Google session expired. Sign in again."
-                403 -> runCatching { JSONObject(text).optString("error") }.getOrNull().takeUnless { it.isNullOrBlank() } ?: "This Google account is not authorized."
+                401 -> "Your session expired. Sign in again."
+                403 -> runCatching { JSONObject(text).optString("error") }.getOrNull().takeUnless { it.isNullOrBlank() } ?: "This account is not authorized."
                 404 -> "The requested campus item is unavailable."
                 409 -> "This item changed. Refresh before trying again."
                 else -> "The campus API is unavailable (HTTP ${response.code}). Try again later."

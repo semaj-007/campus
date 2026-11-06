@@ -32,6 +32,7 @@ import kotlin.math.roundToInt
 class MainActivity : AppCompatActivity() {
     private lateinit var repo: CampusRepository
     private lateinit var googleSso: GoogleSso
+    private lateinit var emailPasswordAuth: EmailPasswordAuth
     private lateinit var handoffScanner: HandoffScanner
     private lateinit var shell: LinearLayout
     private lateinit var body: LinearLayout
@@ -46,6 +47,10 @@ class MainActivity : AppCompatActivity() {
     private var registrationProof:Uri?=null
     private var registrationName=""
     private var registrationStudentNumber=""
+    private var registrationEmail=""
+    private var registrationPassword=""
+    private var loginEmail=""
+    private var loginPassword=""
     private val proofPicker=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri:Uri?->
         if(uri!=null){
             contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -89,6 +94,7 @@ class MainActivity : AppCompatActivity() {
         repo=CampusRepository(this)
         delegate.localNightMode=if(repo.preferences.darkMode)AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
         googleSso=GoogleSso(this)
+        emailPasswordAuth=EmailPasswordAuth(this)
         handoffScanner=HandoffScanner(this){code->attempt{
             val d=repo.delivery(selectedDelivery)
             require(d.status=="IN_TRANSIT"){"Pick up the delivery before confirming its handoff."}
@@ -155,33 +161,46 @@ class MainActivity : AppCompatActivity() {
         val logo=FrameLayout(this).apply{background=surface(green,dp(28).toFloat());addView(RelayIcon(this@MainActivity,"leaf",Color.parseColor("#A6D2AD")),FrameLayout.LayoutParams(dp(44),dp(44),Gravity.CENTER))};body.addView(logo,LinearLayout.LayoutParams(dp(80),dp(80)));space(h=26)
         body.addView(text("CampusRelay",32f,ink,true));space(h=14);body.addView(text(s(R.string.welcome_title),35f,green,true));space(h=16);body.addView(text(s(R.string.welcome_subtitle),16f,muted))
         space(h=24)
-        val art=CampusMap(this,dark).apply{deliveries=repo.deliveries().take(2)};body.addView(art,LinearLayout.LayoutParams(-1,dp(155)));space(h=20)
-        button("Sign back in with Google"){if(ServiceConfig(this).configured)googleSso.start{ok,message->runOnUiThread{if(ok)openUniversity()else notice("Google sign-in",message)}} else go("services")}
+        val email=field("Email address","student@example.edu",loginEmail).apply{inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS;doAfterTextChanged{loginEmail=it.toString()}}
+        val password=field("Password","Enter your password",loginPassword).apply{inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD;doAfterTextChanged{loginPassword=it.toString()}}
+        button("Log in"){
+            attempt{
+                require(email.text.toString().isNotBlank()){ "Enter your email address." };require(password.text.toString().isNotBlank()){ "Enter your password." }
+                emailPasswordAuth.signIn(email.text.toString(),password.text.toString()){ok,message->runOnUiThread{if(ok)openUniversity()else notice("Email sign-in",message)}}
+            }
+        }
         button("Create a new account",primary=false){if(ServiceConfig(this).configured)go("register") else go("services")}
-        if(GoogleSession(this).read()?.isAuthorized==true&&BiometricGate.isAvailable(this))button("Unlock Google account",primary=false){BiometricGate.authenticate(this,"Unlock CampusRelay",{openUniversity()}){notice("Biometric sign-in",it)}}
+        space(h=8);body.addView(text("OR",11f,muted,true).apply{gravity=Gravity.CENTER});space(h=4)
+        button("Continue with Google",primary=false){if(ServiceConfig(this).configured)googleSso.start{ok,message->runOnUiThread{if(ok)openUniversity()else notice("Google sign-in",message)}} else go("services")}
+        if(GoogleSession(this).read()?.isAuthorized==true&&BiometricGate.isAvailable(this))button("Unlock saved account",primary=false){BiometricGate.authenticate(this,"Unlock CampusRelay",{openUniversity()}){notice("Biometric sign-in",it)}}
         button(s(R.string.explore_demo),primary=false){val enter={localPrefs.edit().putBoolean("demo_session",true).apply();go("home")};if(repo.preferences.biometricLock)BiometricGate.authenticate(this,"Unlock CampusRelay",enter){notice("Biometric sign-in",it)}else enter()}
         space(h=12);body.addView(text(s(R.string.security_note),11f,muted).apply{gravity=Gravity.CENTER})
     }
     private fun register(){
-        heading("Create your account","New accounts require proof that you are registered with the institution.")
+        heading("Create your account","Email accounts require proof that you are registered with the institution.")
         val fullName=field("Full name","As shown on your registration document",registrationName).apply{doAfterTextChanged{registrationName=it.toString()}}
         val studentNumber=field("Student number","Your institutional student number",registrationStudentNumber).apply{doAfterTextChanged{registrationStudentNumber=it.toString()}}
+        val email=field("Email address","student@example.edu",registrationEmail).apply{inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS;doAfterTextChanged{registrationEmail=it.toString()}}
+        val password=field("Password","At least 6 characters",registrationPassword).apply{inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD;doAfterTextChanged{registrationPassword=it.toString()}}
         card().apply{
             addView(text("Proof of registration",16f,ink,true));space(this,8)
             addView(text(if(registrationProof==null) "Upload a current registration letter or student document in PDF, JPG, or PNG format (maximum 5 MB)." else "Document selected and ready to submit.",12f,muted))
             button(if(registrationProof==null) "Choose document" else "Choose a different document",this,false){proofPicker.launch(arrayOf("application/pdf","image/jpeg","image/png"))}
         }
-        button("Continue with Google and submit"){
+        button("Create account and submit proof"){
             attempt{
                 require(fullName.text.toString().isNotBlank()){ "Enter your full name." }
                 require(studentNumber.text.toString().isNotBlank()){ "Enter your student number." }
+                require(android.util.Patterns.EMAIL_ADDRESS.matcher(email.text.toString().trim()).matches()){ "Enter a valid email address." }
+                require(password.text.length>=6){ "Password must contain at least 6 characters." }
                 val proof=registrationProof ?: error("Choose proof of registration first.")
-                googleSso.createAccount(fullName.text.toString().trim(),studentNumber.text.toString().trim(),proof){ok,message->runOnUiThread{
+                emailPasswordAuth.createAccount(fullName.text.toString().trim(),studentNumber.text.toString().trim(),email.text.toString().trim(),password.text.toString(),proof){ok,message->runOnUiThread{
                     notice(if(ok) "Registration submitted" else "Registration failed",message)
-                    if(ok){registrationProof=null;registrationName="";registrationStudentNumber="";go("welcome")}
+                    if(ok){registrationProof=null;registrationName="";registrationStudentNumber="";registrationEmail="";registrationPassword="";go("welcome")}
                 }}
             }
         }
+        button("Use Google instead — no proof required",primary=false){go("welcome")}
         button("Back to sign in",primary=false){go("welcome")}
     }
     private fun home(){
@@ -308,7 +327,7 @@ class MainActivity : AppCompatActivity() {
         space(h=20);addLabel(s(R.string.notifications));toggle(s(R.string.notifications),"Remote push requires Firebase configuration",repo.preferences.notifications){repo.updatePreferences(repo.preferences.copy(notifications=it));PushSupport.setEnabled(this,it)}
         space(h=20);addLabel(s(R.string.preferences));card().apply{val r=row();r.addView(text(s(R.string.language),15f,ink,true),LinearLayout.LayoutParams(0,-2,1f));r.addView(text(when(repo.preferences.language){"zu"->"isiZulu";"af"->"Afrikaans";else->"English"}+"  ›",13f,muted));addView(r);setOnClickListener{chooseLanguage()}}
         toggle(s(R.string.dark_mode),"",repo.preferences.darkMode){repo.updatePreferences(repo.preferences.copy(darkMode=it));delegate.localNightMode=if(it)AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO;render()}
-        button("Google & API connection",primary=false){go("services")};button(s(R.string.sign_out),primary=false){localPrefs.edit().putBoolean("demo_session",false).apply();googleSso.signOut();go("welcome")};demoStrip()
+        button("Firebase & API connection",primary=false){go("services")};button(s(R.string.sign_out),primary=false){localPrefs.edit().putBoolean("demo_session",false).apply();googleSso.signOut();go("welcome")};demoStrip()
     }
     private fun toggle(title:String,description:String,checked:Boolean,change:(Boolean)->Unit){card().apply{val r=row();val c=col();c.addView(text(title,14f,ink,true));if(description.isNotEmpty()){space(c,6);c.addView(text(description,11f,muted))};r.addView(c,LinearLayout.LayoutParams(0,-2,1f));r.addView(Switch(this@MainActivity).apply{isChecked=checked;contentDescription=title;setOnCheckedChangeListener{_,isChecked->change(isChecked)}});addView(r)}}
     private fun chooseLanguage(){val values=listOf("English","isiZulu","Afrikaans");val tags=listOf("en","zu","af");AlertDialog.Builder(this).setTitle(s(R.string.language)).setSingleChoiceItems(values.toTypedArray(),tags.indexOf(repo.preferences.language)){dialog,index->repo.updatePreferences(repo.preferences.copy(language=tags[index]));localPrefs.edit().putString("language",tags[index]).apply();dialog.dismiss();recreate()}.setNegativeButton(s(R.string.cancel),null).show()}
@@ -332,11 +351,11 @@ class MainActivity : AppCompatActivity() {
         }catch(_:Exception){}
         return text(initials(name),22f,Color.WHITE,true).apply{gravity=Gravity.CENTER;background=surface(green,dp(40).toFloat())}
     }
-    private fun services(){heading("Connect CampusRelay","Sign in with Google through Firebase Authentication.");card().apply{addView(text("Google Sign-In",20f,ink,true));space(this,10);addView(text("Firebase configuration comes from app/google-services.json. Enter only the deployed CampusRelay API address here. Demo records remain on this device.",13f,muted))}
+    private fun services(){heading("Connect CampusRelay","Use email/password or Google through Firebase Authentication.");card().apply{addView(text("Firebase Authentication",20f,ink,true));space(this,10);addView(text("Firebase configuration comes from app/google-services.json. Enter only the deployed CampusRelay API address here. Demo records remain on this device.",13f,muted))}
         val cfg=ServiceConfig(this)
         if(GoogleSession(this).read()?.isAuthorized==true)button("Open connected workspace"){openUniversity()}
         val api=field("CampusRelay API URL","https://your-api.example.com",cfg.apiBaseUrl)
-        button("Save connection"){attempt{cfg.configure(api.text.toString().trim());notice("Connection saved","Use Continue with Google on the welcome screen. Firebase authenticates the Google account and the API validates its Firebase ID token.")}}
+        button("Save connection"){attempt{cfg.configure(api.text.toString().trim());notice("Connection saved","Use email/password or Continue with Google on the welcome screen. The API validates the Firebase ID token.")}}
         button("Continue with Google",primary=false){if(cfg.configured)googleSso.start{ok,message->runOnUiThread{if(ok)openUniversity()else notice("Google sign-in",message)}}else notice("API URL needed","Enter the deployed HTTPS CampusRelay API URL first.")};demoStrip()
     }
 }

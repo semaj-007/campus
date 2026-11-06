@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace CampusRelay.Api.Tests;
@@ -45,6 +46,11 @@ public sealed class CampusTests : IDisposable
         var status = await service.AccountStatus(identity); Assert.Contains("pending", System.Text.Json.JsonSerializer.Serialize(status));
         Assert.Single(await db.RegistrationProofs.ToListAsync());
         await Assert.ThrowsAsync<CampusException>(() => service.Profile(identity));
+    }
+    [Fact] public async Task GoogleAccountIsApprovedWithoutRegistrationProof()
+    {
+        var identity = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("sub", "google-member"), new Claim("email", "student@gmail.com"), new Claim("name", "Google Student"), new Claim("firebase", "{\"sign_in_provider\":\"google.com\"}") }, "Bearer"));
+        var profile = await service.Profile(identity); Assert.Equal("APPROVED", profile.RegistrationStatus); Assert.Empty(await db.RegistrationProofs.ToListAsync());
     }
     [Fact] public async Task InvalidDeliveryWeightRejected()
     {
@@ -119,7 +125,7 @@ public class TokenPolicyTests
             expires: DateTime.UtcNow.AddMinutes(5), signingCredentials: new(Key, Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256));
         return new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().WriteToken(token);
     }
-    [Fact] public async Task InvalidAudienceIsRejectedAndNonGoogleProviderIsForbidden()
+    [Fact] public async Task InvalidAudienceAndUnsupportedProviderAreRejectedWhilePasswordCanRegister()
     {
         await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(web =>
         {
@@ -136,10 +142,15 @@ public class TokenPolicyTests
                     });
             });
         });
+        using (var scope = factory.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<CampusDb>().Database.EnsureCreatedAsync();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new("Bearer", Token(audience: "wrong-audience"));
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/profile")).StatusCode);
+        client.DefaultRequestHeaders.Authorization = new("Bearer", Token("apple.com"));
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/v1/profile")).StatusCode);
         client.DefaultRequestHeaders.Authorization = new("Bearer", Token("password"));
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/account/status")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/v1/profile")).StatusCode);
     }
 }

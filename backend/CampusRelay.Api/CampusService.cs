@@ -37,15 +37,26 @@ public sealed class CampusService(CampusDb db)
     public async Task<CampusUser> Profile(ClaimsPrincipal principal, bool requireApproved = true)
     {
         var subject = principal.FindFirstValue("sub"); Rules.Require(!string.IsNullOrEmpty(subject), "Authentication required.", 401);
+        var provider = FirebaseProvider(principal);
         var user = await db.Users.SingleOrDefaultAsync(x => x.Subject == subject);
         if (user == null)
         {
             user = new CampusUser { Subject = subject!, Email = principal.FindFirstValue("email") ?? "", FullName = principal.FindFirstValue("name") ?? "Campus member",
-                RegistrationStatus = principal.Identity?.AuthenticationType == "test" ? "APPROVED" : "UNVERIFIED" };
+                RegistrationStatus = principal.Identity?.AuthenticationType == "test" || provider == "google.com" ? "APPROVED" : "UNVERIFIED" };
             db.Users.Add(user); await db.SaveChangesAsync();
+        }
+        else if (provider == "google.com" && user.RegistrationStatus != "APPROVED")
+        {
+            user.RegistrationStatus = "APPROVED"; await db.SaveChangesAsync();
         }
         if (requireApproved) Rules.Require(user.RegistrationStatus == "APPROVED", user.RegistrationStatus == "PENDING" ? "Your proof of registration is awaiting institutional review." : "Create an account and submit proof of registration first.", 403);
         return user;
+    }
+    private static string? FirebaseProvider(ClaimsPrincipal principal)
+    {
+        var claim = principal.FindFirstValue("firebase"); if (string.IsNullOrWhiteSpace(claim)) return null;
+        try { using var document = System.Text.Json.JsonDocument.Parse(claim); return document.RootElement.TryGetProperty("sign_in_provider", out var value) ? value.GetString() : null; }
+        catch (System.Text.Json.JsonException) { return null; }
     }
     public async Task<object> AccountStatus(ClaimsPrincipal principal)
     {

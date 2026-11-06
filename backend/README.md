@@ -28,7 +28,7 @@ export Firebase__ProjectId='<firebase-project-id>'
 dotnet run --project CampusRelay.Api --urls http://127.0.0.1:5080
 ```
 
-Development creates a local `campusrelay.db` SQLite database automatically. `GET /health` is public. Every `/api/v1` route requires a valid, unexpired **Firebase ID token issued by the configured project through the Google provider**. The token must contain a subject, verified email, and `firebase.sign_in_provider = google.com`. Without a project ID the development server starts for health checks, but protected routes remain inaccessible. Production startup fails if `Firebase:ProjectId` is missing. Microsoft/Entra and other SSO providers are not accepted.
+Development creates a local `campusrelay.db` SQLite database automatically. `GET /health` is public. Every `/api/v1` route requires a valid, unexpired Firebase ID token issued by the configured project. Verified `google.com` identities are approved automatically. Firebase `password` identities may submit registration proof and can use campus features only after approval. Other providers are rejected. Without a project ID the development server starts for health checks, but protected routes remain inaccessible. Production startup fails if `Firebase:ProjectId` is missing.
 
 Local HTTP is for development probes only. Deploy behind a trusted TLS endpoint supporting HTTP/2, configure trusted hostnames using `AllowedHosts`, and use private SQL connectivity as appropriate. Do not expose the local HTTP service publicly. Never place signing keys, access tokens, SQL passwords, or Firebase credentials in source control or Android resources.
 
