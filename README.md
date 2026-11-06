@@ -170,6 +170,8 @@ The connected workspace caches account data in Room. Offline data is labelled as
 
 ## Testing
 
+GitHub Actions runs Android compilation, unit tests, lint, backend tests, and a Render-compatible Docker build on every push and pull request to `main`. The workflow also stores the debug APK and test reports as downloadable artifacts for 14 days. It can be started manually from **GitHub → Actions → CampusRelay CI → Run workflow**.
+
 Android:
 
 ```powershell
